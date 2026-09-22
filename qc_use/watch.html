@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>qc-use · live</title>
+<style>
+  :root { --ink:#16201d; --muted:#65736e; --line:#dde4e1; --bg:#f3f5f4; --card:#fff; --accent:#148278;
+    --pass:#1b7f3b; --fail:#b3261e; --warn:#8a5a00; --stop:#5b4bb5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--ink);
+    background: var(--bg); }
+  header { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--card);
+    border-bottom: 1px solid var(--line); }
+  header .brand { font-weight: 700; letter-spacing: -.01em; }
+  header .title { font-weight: 600; }
+  header .url { color: var(--muted); font: 12px ui-monospace, monospace; }
+  .pill { margin-left: auto; padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 12px;
+    background: #e5eeeb; }
+  .pill.pass { background: #e3f3e8; color: var(--pass); } .pill.fail { background: #fbe7e5; color: var(--fail); }
+  .pill.blocked, .pill.inconclusive { background: #fbf0dc; color: var(--warn); }
+  .pill.needs_approval { background: #ece9fb; color: var(--stop); }
+  .clock { font: 600 13px ui-monospace, monospace; color: var(--muted); min-width: 64px; text-align: right; }
+  main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 330px; gap: 16px; padding: 16px 22px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  ol.steps { list-style: none; padding: 0; margin: 0; }
+  ol.steps li { display: grid; grid-template-columns: 24px 1fr; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); }
+  ol.steps li:first-child { border-top: 0; }
+  ol.steps li.current .text { font-weight: 600; }
+  .icon { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px;
+    background: #edf1ef; color: var(--muted); font-weight: 700; }
+  .current .icon { background: var(--accent); color: #fff; }
+  .pass .icon { background: #e3f3e8; color: var(--pass); } .fail .icon { background: #fbe7e5; color: var(--fail); }
+  .blocked .icon, .inconclusive .icon { background: #fbf0dc; color: var(--warn); }
+  .needs_approval .icon { background: #ece9fb; color: var(--stop); }
+  .expect, .reason { color: var(--muted); font-size: 12px; }
+  .reason { color: var(--fail); }
+  .screen { padding: 0; overflow: hidden; }
+  .screen .bar { display: flex; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .screen .bar span:last-child { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .screen img { display: block; width: 100%; background: #fafbfb; min-height: 320px; }
+  .side { display: grid; gap: 16px; align-content: start; }
+  .row { display: grid; grid-template-columns: 1fr 44px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+  .row .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .p { text-align: right; font: 12px ui-monospace, monospace; color: var(--muted); }
+  .meter { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: #edf1ef; overflow: hidden; margin-top: -3px; }
+  .meter i { display: block; height: 100%; background: var(--accent); }
+  .row.chosen .label { font-weight: 600; }
+  ul.actions { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+  ul.actions li { padding: 6px 0; border-top: 1px solid var(--line); }
+  ul.actions li:first-child { border-top: 0; }
+  ul.actions small { color: var(--muted); display: block; }
+  .summary { margin: 0 22px 16px; padding: 12px 16px; border-radius: 12px; background: var(--card);
+    border: 1px solid var(--line); display: none; }
+  .empty { color: var(--muted); font-size: 13px; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">qc-use</span><span class="title" id="title"></span><span class="url" id="url"></span>
+  <span class="pill" id="status">running</span><span class="clock" id="clock">0.0 s</span>
+</header>
+<div class="summary" id="summary"></div>
+<main>
+  <section><h2>Critical path</h2><ol class="steps" id="steps"></ol></section>
+  <section class="screen">
+    <div class="bar"><span id="page-title">Waiting for the first page…</span><span id="page-url"></span></div>
+    <img id="shot" alt="The page under test">
+  </section>
+  <div class="side">
+    <section><h2>Jev's operation</h2><div id="operations" class="empty">No decision yet.</div></section>
+    <section><h2>Jev's target</h2><div id="targets" class="empty">—</div></section>
+    <section><h2>Actions</h2><ul class="actions" id="actions"></ul></section>
+  </div>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get("t");
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+const pct = (p) => `${Math.round(p * 100)}%`;
+const icons = { pass: "✓", fail: "✕", blocked: "!", inconclusive: "?", needs_approval: "✋", skipped: "–" };
+let shot = 0;
+function bars(rows, chosen) {
+  return rows.map((r, i) => `<div class="row ${i === 0 && chosen ? "chosen" : ""}"><span class="label" title="${esc(r.label)}">${esc(r.label)}</span>` +
+    `<span class="p">${pct(r.p)}</span><span class="meter"><i style="width:${pct(r.p)}"></i></span></div>`).join("");
+}
+async function tick() {
+  let s;
+  try { s = await (await fetch(`/api/state?t=${token}`)).json(); } catch { return; }
+  $("title").textContent = s.title;
+  $("url").textContent = s.url;
+  $("status").textContent = s.status.replace("_", " ");
+  $("status").className = `pill ${s.status}`;
+  $("clock").textContent = `${((s.elapsed_ms || 0) / 1000).toFixed(1)} s`;
+  $("steps").innerHTML = s.steps.map((step, i) => {
+    const state = step.outcome || (i === s.current && s.status === "running" ? "current" : "");
+    return `<li class="${state}"><span class="icon">${icons[step.outcome] || i + 1}</span><div><div class="text">${esc(step.text)}</div>` +
+      step.expect.map((e) => `<div class="expect">expect: ${esc(e)}</div>`).join("") +
+      (step.reason ? `<div class="reason">${esc(step.reason)}</div>` : "") + `</div></li>`;
+  }).join("");
+  if (s.page) { $("page-title").textContent = s.page.title || "Untitled page"; $("page-url").textContent = s.page.url; }
+  if (s.shot !== shot) { shot = s.shot; $("shot").src = `/api/screenshot?t=${token}&n=${shot}`; }
+  const d = s.decision;
+  $("operations").className = d ? "" : "empty";
+  $("operations").innerHTML = d ? bars(d.operations, true) + `<div class="expect">${d.latency_ms} ms · confidence ${pct(d.confidence)}</div>` : "No decision yet.";
+  $("targets").className = d && d.targets.length ? "" : "empty";
+  $("targets").innerHTML = d && d.targets.length ? bars(d.targets, true) : "—";
+  $("actions").innerHTML = s.actions.slice().reverse().map((a) =>
+    `<li>${esc(a.operation)} <b>${esc(a.action)}</b>${a.text ? ` ← ${esc(a.text)}` : ""}<small>${pct(a.probability)} · ${a.latency_ms} ms · ${a.page_changed === false ? "no visible change" : "page changed"}</small></li>`
+  ).join("") || `<li class="empty">No actions yet.</li>`;
+  if (s.summary) { $("summary").style.display = "block"; $("summary").textContent = s.summary; }
+  if (s.status === "running") setTimeout(tick, 250);
+}
+tick();
+</script>
+</body>
+</html>

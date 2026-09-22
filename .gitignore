@@ -1,0 +1,10 @@
+.env
+qa/.env
+qa-results/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+dist/
+*.egg-info/
