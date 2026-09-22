@@ -1,12 +1,15 @@
 """Offline contracts for test files, guardrails, secrets, verdicts and reports. No paid APIs, no browser."""
 
+import base64
+import io
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from PIL import Image
 
 from qc_use import guards, judge, runner
-from qc_use.engine.agent import Blocked, NeedsApproval
+from qc_use.engine.agent import Blocked, NeedsApproval, StalePage
 from qc_use.report import EXIT_CODES, Report, markdown
 from qc_use.secrets import Redactor, read_env_file, resolve
 from qc_use.spec import Bands, Check, SpecError, load
@@ -247,3 +250,26 @@ def test_bundled_demo_tests_and_examples_are_valid():
     for path in paths:
         if path.name != "README.md":
             assert load(path).steps
+
+
+def test_a_step_passes_only_on_fresh_evidence(tmp_path, monkeypatch):
+    spec = load(write(tmp_path, EXAMPLE))
+    fresh = {"url": "http://localhost:3000/home", "title": "Home", "text": "Dashboard", "actions": []}
+    browser = Mock(observe=Mock(return_value=fresh))
+    monkeypatch.setattr(judge, "expectations", Mock(return_value=[0.1]))
+    monkeypatch.setattr(runner, "SETTLE_SECONDS", 0)
+    checks, _ = runner.verify(spec, spec.steps[0], browser, "goal")
+    assert [(c.kind, c.outcome) for c in checks] == [("expect", "fail"), ("check", "pass")]
+    assert browser.observe.call_count == 2  # One read-only re-check, then the answer stands.
+
+
+def test_screenshots_black_out_secret_values_or_are_not_saved():
+    buffer = io.BytesIO()
+    Image.new("RGB", (100, 60), "white").save(buffer, "JPEG")
+    data = base64.b64encode(buffer.getvalue()).decode()
+    browser = Mock(evaluate=Mock(return_value=[[10, 10, 30, 20]]))
+    image = Image.open(io.BytesIO(runner.masked(browser, data, {"PASSWORD": "hunter22"})))
+    assert "hunter22" in browser.evaluate.call_args.args[0]
+    assert image.getpixel((25, 20))[0] < 60 and image.getpixel((90, 50))[0] > 200
+    browser.evaluate.side_effect = StalePage("changed")
+    assert runner.masked(browser, data, {"PASSWORD": "hunter22"}) is None
