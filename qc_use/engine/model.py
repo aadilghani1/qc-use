@@ -328,9 +328,14 @@ def text_settings():
     return base, os.environ.get("TEXT_MODEL") or "inception/mercury-2.5"
 
 
+def text_key(base):
+    """TEXT_MODEL_API_KEY, or the gateway key when the text helper uses AI Gateway."""
+    return os.environ.get("TEXT_MODEL_API_KEY") or (credential(GATEWAY_KEYS) if base.startswith(GATEWAY) else None)
+
+
 def field_text(context):
     base, model = text_settings()
-    key = os.environ.get("TEXT_MODEL_API_KEY") or (credential(GATEWAY_KEYS) if base.startswith(GATEWAY) else None)
+    key = text_key(base)
     if not key:
         raise ValueError(
             "TYPE_TEXT needs TEXT_MODEL_API_KEY, or AI_GATEWAY_API_KEY with the AI Gateway base URL; "

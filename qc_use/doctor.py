@@ -58,9 +58,7 @@ def doctor(file=None):
         except httpx.HTTPError as error:
             report(False, f"AI Gateway unreachable: {error}")
     base, text_model = model.text_settings()
-    text_key = os.environ.get("TEXT_MODEL_API_KEY") or (
-        model.credential(model.GATEWAY_KEYS) if base.startswith(model.GATEWAY) else None
-    )
+    text_key = model.text_key(base)
     report(bool(text_key), f"Text helper {text_model} via {base}",
            "" if text_key else "Set TEXT_MODEL_API_KEY, or AI_GATEWAY_API_KEY for the gateway.")
 
