@@ -36,6 +36,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["qc_use"]
+exclude = ["qc_use/**/AGENTS.md", "qc_use/**/CLAUDE.md"]
 
 [dependency-groups]
 dev = ["pytest>=8.4,<9", "ruff>=0.14,<1"]
