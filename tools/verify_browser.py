@@ -111,6 +111,40 @@ def main():
                 pass
             else:
                 raise AssertionError("Truncated absence must not pass")
+        from qc_use.demo.app import serve
+
+        server = serve(0)
+        try:
+            browser.call("Page.navigate", url=f"http://127.0.0.1:{server.server_port}/login")
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if browser.evaluate("location.pathname") == "/login":
+                    break
+                time.sleep(0.02)
+            browser.evaluate(
+                "history.pushState({},'', '/navigation-fixture'); localStorage.setItem('fixture','persisted')"
+            )
+            state = browser.observe(screenshot=False)
+            back = next(a for a in state["actions"] if a["kind"] == "back")
+            assert back["href"].endswith("/login")
+            browser.act(back, state)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and browser.evaluate("location.pathname") != "/login":
+                time.sleep(0.02)
+            assert browser.evaluate("location.pathname") == "/login"
+            state = browser.observe(screenshot=False)
+            reload = next(a for a in state["actions"] if a["kind"] == "reload")
+            origin = browser.evaluate("performance.timeOrigin")
+            browser.act(reload, state)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and browser.evaluate("performance.timeOrigin") == origin:
+                time.sleep(0.02)
+            assert browser.evaluate("performance.timeOrigin") != origin
+            assert browser.evaluate("localStorage.getItem('fixture')") == "persisted"
+            print("PASS: observed Back changes history; native Reload preserves stored state.")
+        finally:
+            server.shutdown()
+            server.server_close()
         print("PASS: real Chrome masks split text, fields, images, generated content, and opaque shadow content.")
         print("PASS: styles restored, changed captures withheld, viewport and document evidence separated.")
     finally:

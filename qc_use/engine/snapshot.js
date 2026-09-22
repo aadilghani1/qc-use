@@ -131,6 +131,7 @@
   actions.forEach((a,i)=>a.id='e'+(i+1));
   if (scrollY+innerHeight<height-2) actions.push({id:'scroll_down',kind:'scroll',label:'Scroll down',delta:560});
   if (scrollY>0) actions.push({id:'scroll_up',kind:'scroll',label:'Scroll up',delta:-560});
+  actions.push({id:'reload',kind:'reload',label:'Reload current page only when explicitly requested',href:location.href});
   actions.push({id:'wait',kind:'wait',label:'Wait for the page to update'});
   return {url:location.href,title:document.title,document_text:documentWords.join("\n").slice(0,20000),
     document_text_truncated:documentTruncated,text_truncated:length>6000,w:innerWidth,h:innerHeight,text,

@@ -20,16 +20,16 @@ Each action decision is one request to Jev. Independent checkpoint and result ch
 
 1. **Read the page.** One script in the page (`engine/snapshot.js`) reads the visible text and the controls: links, buttons, fields, dropdowns, checkboxes, and file fields. Each element gets a number.
 2. **Ask Jev.** The request has several questions. All of them see the same page:
-   - `operation`: which action is next? `CLICK`, `TYPE_TEXT`, `SELECT`, `UPLOAD`, `SCROLL_DOWN`, `SCROLL_UP`, `WAIT`, `DONE`, or `BLOCKED`.
+   - `operation`: which action is next? `CLICK`, `TYPE_TEXT`, `SELECT`, `UPLOAD`, `SCROLL_DOWN`, `SCROLL_UP`, `WAIT`, `BACK`, `RELOAD`, `DONE`, or `BLOCKED`.
    - `click_target`, `type_text_target`, and the others: if that action is next, which element?
    - `step_done`: does the current step and its checks appear complete? The QA layer independently checks the step before another input can leave its checkpoint.
 3. **Use only the matching answer.** If Jev chooses `CLICK`, only `click_target` counts. The other target answers do nothing. This is called speculative fan-out: qc-use asks every question at once, so one round trip is enough.
 4. **Check the answer.** Every answer must be a valid choice from the list, with valid probabilities. If not, nothing happens.
-5. **Run the gate.** Before a click, fill, dropdown choice, or upload, the gate checks the never-do rules (`guards.py`).
+5. **Run the gate.** Before a click, fill, dropdown choice, upload, Back, or Reload, the gate checks the never-do rules (`guards.py`).
 6. **Do the action.** Code finds the element again, checks that it is still visible and not covered, and then clicks or types. For a text field, the text helper writes the value. For a secret, code types the value.
 7. **Record, then read again.** qc-use records the action before it reads the page again. A page change during the read cannot hide the action.
 
-Jev never writes a selector, a coordinate, or code. Every action uses an element that qc-use saw on the page.
+Jev never writes a selector, a coordinate, or code. Element actions use observed nodes. Back uses an observed Chrome history entry. Reload uses the current page.
 
 ## Why the text helper is separate
 
@@ -78,3 +78,19 @@ Ratings use observed content and check results, and label incomplete coverage.
 A request worker sends only one HTTP request. The caller limits its wait to the remaining retry deadline.
 A late response cannot run input or change metering. Unknown pricing is recorded when an in-flight request exceeds the deadline.
 The run stops further model requests after provider unavailability. Existing page-freshness checks still guard recovered decisions.
+
+## Browser navigation
+
+The page snapshot offers Reload. Chrome supplies the immediate previous HTTP(S) history entry for Back.
+Jev may choose these controls only when the step explicitly requests them.
+Before Back executes, code checks that the history entry still matches its observed ID and URL.
+Both controls use native Chrome commands through the existing input and dialog handler.
+The gate checks never-do rules and allowed sites before either command runs.
+The engine records navigation before reading the page again. An uncertain input is not repeated.
+
+## Saved views
+
+`qc-use report` validates a saved report and serves the existing inspector on loopback with a private token.
+Select a step to see its saved masked image, checks, and actions.
+The server reads JPEG paths inside the run folder only. It does not start Chrome or call a model.
+The view does not reconstruct missing images or decision probabilities. The trace keeps the original decision data.

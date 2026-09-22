@@ -48,7 +48,7 @@ class Chrome:
         (self.profile / "Default").mkdir(parents=True, exist_ok=True)
         preferences = self.profile / "Default" / "Preferences"
         if not preferences.exists():
-            preferences.write_text(json.dumps(PREFERENCES))
+            preferences.write_text(json.dumps(PREFERENCES), encoding="utf-8")
         port_file = self.profile / "DevToolsActivePort"
         port_file.unlink(missing_ok=True)
         args = [
@@ -75,7 +75,7 @@ class Chrome:
             while time.monotonic() < deadline:
                 if self.process.poll() is not None:
                     raise RuntimeError(f"Chrome exited during startup (code {self.process.returncode}).")
-                lines = port_file.read_text().splitlines() if port_file.exists() else []
+                lines = port_file.read_text(encoding="utf-8").splitlines() if port_file.exists() else []
                 if lines and lines[0].strip().isdigit():
                     self.url = f"http://127.0.0.1:{lines[0].strip()}"
                     return

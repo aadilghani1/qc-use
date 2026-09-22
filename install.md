@@ -46,7 +46,7 @@ Open `qa/.env` and set your key:
 AI_GATEWAY_API_KEY=your-key
 ```
 
-You can also set the key in your environment. The environment wins over `qa/.env`.
+You can also set the key in your environment. The environment wins over `qa/.env`. Empty template values do not hide values from the project’s `.env`.
 
 Coding agents: do not ask the user to paste a key or a password into the chat. Ask the user to edit `qa/.env`.
 
@@ -62,7 +62,16 @@ To also check a test file, its secrets, and your app, run:
 qc-use doctor qa/onboarding.md
 ```
 
-`doctor` makes no paid model calls.
+`doctor` makes no paid model calls. Add `--json` for structured results and installed skill status.
+It checks credentials and setup. A run checks current model availability before starting Chrome.
+Run `qc-use validate qa/onboarding.md --json` to check the file without Chrome, secrets, or network access.
+
+After an upgrade, run `qc-use skill status`, then `qc-use skill install` to refresh outdated copies.
+Codex installation respects `CODEX_HOME`. opencode installation respects `XDG_CONFIG_HOME`.
+These checks verify skill files. Restart your agent to load them.
+
+Run `qc-use report qa-results/<run-id>` to reopen saved evidence. Add `--no-open` to print the URL without opening it.
+Keep this command running while viewing the report. Press Ctrl+C to close it.
 
 ## 5. Try the demo
 
@@ -109,3 +118,5 @@ uv tool uninstall qc-use
 Then delete the `SKILL.md` files that `qc-use skill install` listed.
 
 Use `--headless` to hide Chrome. The `--watch` inspector is independent. Do not set `BROWSER=true` when automatic opening is wanted.
+
+Test files, environment files, saved reports, and CLI output use UTF-8 on every platform.

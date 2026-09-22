@@ -396,13 +396,13 @@ def run(
     )
     # One more redaction pass on everything written to disk.
     report = report.redacted(redact)
-    (out / "report.json").write_text(report.model_dump_json(indent=2))
-    (out / "report.md").write_text(markdown(report))
+    (out / "report.json").write_text(report.model_dump_json(indent=2), encoding="utf-8")
+    (out / "report.md").write_text(markdown(report), encoding="utf-8")
     trace = {
         "test": spec.model_dump(mode="json"),
         "gates": guard.gates,
         "steps": traces,
         "model_requests": meter.requests,
     }
-    (out / "trace.json").write_text(json.dumps(redact(trace), indent=2, default=str))
+    (out / "trace.json").write_text(json.dumps(redact(trace), indent=2, default=str), encoding="utf-8")
     return report

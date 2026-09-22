@@ -36,7 +36,7 @@ And:
 | `secrets.py` | Resolves secrets and holds the `Redactor`. |
 | `report.py` | The report models, exit codes, and `report.md`. |
 | `chrome.py` | Starts Chrome with a private profile. |
-| `watch.py`, `watch.html` | The read-only live view for `--watch`. |
+| `watch.py`, `watch.html`, `saved_view.py` | The read-only live and saved view for `--watch`. |
 | `doctor.py`, `scaffold.py`, `skill.py`, `demo/` | The `doctor`, `init`, `skill`, and `demo` commands. |
 | `engine/` | Reads a page, asks Jev for one decision, and does one action. |
 
@@ -46,7 +46,7 @@ The QA layer (`qc_use/*.py`) imports the engine. The engine imports nothing from
 
 These are hard guardrails. Each one has a test. Keep the test green.
 
-1. **Jev chooses, code acts.** Every action targets an observed element by its code-owned node id. Model output never becomes a selector, a coordinate, a URL, or code.
+1. **Jev chooses, code acts.** Element actions target observed code-owned node IDs. Browser Back targets an observed history entry; Reload targets the current page. Model output never becomes a selector, a coordinate, a URL, or code.
 2. **Record, then read.** Append each action to the history before the next page read.
 3. **One action runs once.** When an action is uncertain, stop the step with `Blocked` or `StalePage` and report it.
 4. **Secret values stay local.** Every model request goes through `model.post_json`, the redaction choke point. Every file write goes through the `Redactor`. Every saved screenshot goes through `runner.masked`.

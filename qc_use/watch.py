@@ -46,13 +46,20 @@ class Watch:
     @classmethod
     def start(cls, spec, echo=print):
         watch = cls(spec)
+        watch.open(echo)
+        return watch
+
+    def open(self, echo=print, open_browser=True, label="Watching live"):
+        """Serve the inspector on a private loopback URL."""
+        watch = self
         server = ThreadingHTTPServer(("127.0.0.1", 0), watch.handler())
         threading.Thread(target=server.serve_forever, daemon=True).start()
         watch.server = server
         url = f"http://127.0.0.1:{server.server_port}/?t={watch.token}"
-        echo(f"  Watching live at {url}")
-        webbrowser.open(url)
-        return watch
+        echo(f"  {label} at {url}")
+        if open_browser:
+            webbrowser.open(url)
+        return url
 
     def __call__(self, index, state, image=None, image_reason=None):
         """Called by the runner after every tick of the current step, with a masked JPEG of the page."""
@@ -114,6 +121,14 @@ class Watch:
             self.state["summary"] = report.summary if report else ""
             self.state["elapsed_ms"] = round((time.perf_counter() - self.started) * 1000)
         self.final_seen.wait(2)  # A background viewer polls less often.
+        self.close()
+
+    def view(self, index=None):
+        """Return the latest live state and masked image."""
+        return self.state, self.screenshot
+
+    def close(self):
+        """Stop the inspector and release its listening socket."""
         if hasattr(self, "server"):
             self.server.shutdown()
             self.server.server_close()
@@ -133,13 +148,18 @@ class Watch:
                 if path == "/":
                     return self.reply(200, PAGE.read_bytes(), "text/html; charset=utf-8")
                 with watch.lock:
+                    try:
+                        index = int(query["step"][0]) if "step" in query else None
+                        state, screenshot = watch.view(index)
+                    except (ValueError, IndexError):
+                        return self.reply(400, b"Invalid step", "text/plain")
                     if path == "/api/state":
-                        self.reply(200, json.dumps(watch.redact(watch.state)).encode(), "application/json")
-                        if watch.state["status"] != "running":
+                        self.reply(200, json.dumps(watch.redact(state)).encode(), "application/json")
+                        if state["status"] != "running":
                             watch.final_seen.set()
                         return
-                    if path == "/api/screenshot" and watch.screenshot:
-                        return self.reply(200, watch.screenshot, "image/jpeg")
+                    if path == "/api/screenshot" and screenshot:
+                        return self.reply(200, screenshot, "image/jpeg")
                 self.reply(404, b"Not found", "text/plain")
 
             def reply(self, status, body, kind):

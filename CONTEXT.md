@@ -48,3 +48,8 @@ This file defines the words in qc-use. The code, the docs, and the reports use t
 - **Provider unavailable**: transient model failures exhausted the retry deadline. The run stops without more model requests.
 - **Preflight**: a small, validated Jev question before Chrome starts. It checks current availability, not future availability.
 - **Retry deadline**: the total time allowed for one model request, including attempts and waits.
+
+- **Validation**: offline checks of a test file. Validation does not run the browser or require credentials.
+- **Saved view**: the local inspector showing an existing report and its saved step images.
+- **Back**: navigation to the previous observed browser-history entry.
+- **Reload**: loading the current page again through Chrome.

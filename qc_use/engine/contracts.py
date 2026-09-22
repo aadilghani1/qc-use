@@ -7,7 +7,7 @@ class Action(TypedDict):
     """An action produced by the page reader, never a model-generated selector."""
 
     id: str
-    kind: Literal["click", "fill", "select", "upload", "scroll", "wait"]
+    kind: Literal["click", "fill", "select", "upload", "scroll", "wait", "back", "reload"]
     label: str
     node: NotRequired[int]
     role: NotRequired[str]
@@ -17,6 +17,7 @@ class Action(TypedDict):
     secret: NotRequired[str]
     file: NotRequired[str]
     delta: NotRequired[int]
+    entry_id: NotRequired[int]
 
 
 class Page(TypedDict):

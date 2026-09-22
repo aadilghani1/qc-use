@@ -104,6 +104,18 @@ Run `qc-use init` to create a `qa/` folder with an example. The full format is i
 
 ## Run a test
 
+Your coding agent reads the project, starts the local app, and writes the requested critical path.
+The CLI runs that test file. It does not generate tests from a prompt by itself.
+Review the generated steps and use a disposable test account.
+
+```bash
+qc-use validate qa/onboarding.md --json # offline; no Chrome or model calls
+qc-use doctor qa/onboarding.md --json   # check setup and the start URL
+qc-use skill status                    # find outdated installed instructions
+qc-use report qa-results/<run-id>       # reopen saved step evidence; Ctrl+C closes it
+```
+
+
 For manual OTP or OAuth sign-in, use a dedicated profile in an interactive terminal:
 
 ```bash
@@ -227,3 +239,10 @@ Use `mode: observe` for read-only steps and `action:` for specific required inpu
 Exact text checks use viewport text; use `document contains X` for off-screen document text.
 `verify_timeout` sets the polling window without replaying input. An in-flight browser or model check can finish after this window.
 See [test files](docs/test-files.md) for manual authentication, repeatable accounts, ratings, cost evidence, and report schema version 2.
+
+Use explicit `action: Reload the page` and `action: Go back in browser history` requirements for persistence and navigation checks.
+Back uses Chrome's observed history entry. Both controls pass through the safety gate.
+Saved views show recorded step screenshots and checks. They are not a video or an interactive app session.
+
+The source hash in `qc-use --version` identifies the installed build. Refresh agent instructions after upgrading with `qc-use skill install`.
+See [the release process](CONTRIBUTING.md#releases) for versioned GitHub artifacts and pinned installs.

@@ -1,20 +1,19 @@
 ---
 url: http://localhost:3000/signup
-secrets: [SIGNUP_PASSWORD]
-persona:
-  name: Sam Okafor
-  role: Founder
-  company: QA Test Co
-  team_size: 1-10
-rate:
-  signup_ease: [confusing, effortful, okay, smooth, effortless]
+secrets: [SIGNUP_EMAIL, SIGNUP_PASSWORD]
 ---
-# Sign up
+# Create a test account
 
-A founder creates a new account. The text helper writes a fake test email address, and the report lists it.
-Password fields accept secrets only, so the password comes from SIGNUP_PASSWORD.
+Use a new, disposable local test account. Adapt labels and expected routes to your app.
+Set both secrets locally. This test creates account data and is not safe to repeat without resetting that data.
+For email verification, complete manual authentication and use authenticated.md instead.
 
-1. Create an account as the persona with a test email address and SIGNUP_PASSWORD
-   - expect: the app shows a welcome or onboarding screen
-2. Finish the first screen as the persona
-   - expect: the main screen of the app is showing
+1. Enter SIGNUP_EMAIL in the email field
+   - action: Enter SIGNUP_EMAIL in the email field
+   - expect: the email field holds the SIGNUP_EMAIL secret
+2. Enter SIGNUP_PASSWORD in the password field
+   - action: Enter SIGNUP_PASSWORD in the password field
+   - expect: the password field is filled
+3. Create the account
+   - action: Click Create account
+   - check: url contains /onboarding

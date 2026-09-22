@@ -7,7 +7,7 @@ import sys
 from functools import partial
 from pathlib import Path
 
-from . import __version__
+from . import __version__, build_identity
 
 MARK = {"pass": "✅", "fail": "❌", "inconclusive": "❔", "blocked": "⛔", "needs_approval": "✋"}
 
@@ -133,8 +133,11 @@ def demo_command(args):
 
 def skill_command(args):
     from .report import SETUP_ERROR
-    from .skill import TARGETS, install, text
+    from .skill import TARGETS, install, status, text
 
+    if args.action == "status":
+        print(json.dumps(status(), indent=2))
+        return 0
     if args.action == "print":
         print(text(), end="")
         return 0
@@ -152,7 +155,7 @@ def skill_command(args):
 def doctor_command(args):
     from .doctor import doctor
 
-    return doctor(args.file)
+    return doctor(args.file, json_output=args.json)
 
 
 def schema_command(args):
@@ -167,9 +170,41 @@ def schema_command(args):
     return 0
 
 
+def validate_command(args):
+    """Validate test files without credentials, network calls, or Chrome."""
+    from .report import SETUP_ERROR
+    from .spec import SpecError, load
+
+    results = []
+    for path in args.files:
+        try:
+            spec = load(path)
+            results.append({"file": str(path), "valid": True, "title": spec.title, "steps": len(spec.steps)})
+        except (SpecError, OSError) as error:
+            results.append({"file": str(path), "valid": False, "error": str(error)})
+    if args.json:
+        print(json.dumps(results, indent=2))
+    else:
+        for result in results:
+            print(f"{result['file']}: " + (f"valid ({result['steps']} steps)" if result["valid"] else result["error"]))
+    return 0 if all(r["valid"] for r in results) else SETUP_ERROR
+
+
+def report_command(args):
+    """Serve a saved report through the existing local inspector."""
+    from .report import SETUP_ERROR
+    from .saved_view import serve
+
+    try:
+        return serve(args.path, open_browser=not args.no_open)
+    except (OSError, ValueError) as error:
+        print(f"qc-use: Cannot open report: {error}", file=sys.stderr)
+        return SETUP_ERROR
+
+
 def parser():
     root = argparse.ArgumentParser(prog="qc-use", description=__doc__)
-    root.add_argument("--version", action="version", version=f"qc-use {__version__}")
+    root.add_argument("--version", action="version", version=f"qc-use {__version__} ({build_identity()[:12]})")
     commands = root.add_subparsers(dest="command", required=True)
 
     run = commands.add_parser("run", help="Run one or more test files, e.g. qa/onboarding.md")
@@ -213,14 +248,25 @@ def parser():
     demo.set_defaults(handler=demo_command)
 
     skill = commands.add_parser("skill", help="Print or install the coding-agent skill.")
-    skill.add_argument("action", nargs="?", choices=["print", "install"], default="print")
+    skill.add_argument("action", nargs="?", choices=["print", "install", "status"], default="print")
     skill.add_argument("--target", help="One agent (claude, codex, cursor, gemini, copilot, opencode, agents) or all.")
     skill.add_argument("--path", help="Write SKILL.md to this exact path instead.")
     skill.set_defaults(handler=skill_command)
 
     doctor = commands.add_parser("doctor", help="Check Chrome, inference keys, and optionally a test file.")
     doctor.add_argument("file", nargs="?")
+    doctor.add_argument("--json", action="store_true", help="Print structured setup checks and build identity.")
     doctor.set_defaults(handler=doctor_command)
+
+    validate = commands.add_parser("validate", help="Check test files offline without running them.")
+    validate.add_argument("files", nargs="+")
+    validate.add_argument("--json", action="store_true")
+    validate.set_defaults(handler=validate_command)
+
+    report = commands.add_parser("report", help="Open a saved run folder or report.json in the inspector.")
+    report.add_argument("path")
+    report.add_argument("--no-open", action="store_true", help="Print the local URL without opening a browser.")
+    report.set_defaults(handler=report_command)
 
     schema = commands.add_parser("schema", help="Print the JSON schema of report.json or of a test file.")
     schema.add_argument("kind", choices=["report", "test"])
@@ -231,6 +277,9 @@ def parser():
 def main(argv=None):
     from .report import SETUP_ERROR
 
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     args = parser().parse_args(argv)
     if getattr(args, "repeat", 1) < 1:
         print("qc-use: --repeat must be at least 1", file=sys.stderr)

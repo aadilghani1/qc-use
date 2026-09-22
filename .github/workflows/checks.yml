@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -27,3 +28,24 @@ jobs:
       - run: uv run python tools/verify_browser.py
       - run: uv build
       - run: uv run python tools/check_dist.py
+
+  installed:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv build
+      - run: uv venv --python 3.12 .installed
+      - name: Install wheel and check a fresh project
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            python=.installed/Scripts/python.exe
+          else
+            python=.installed/bin/python
+          fi
+          uv pip install --python "$python" dist/*.whl
+          "$python" tools/check_install.py

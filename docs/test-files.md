@@ -263,3 +263,25 @@ Reports use `qc-use.report/2`. Checks distinguish `action`, `expect`, `implicit`
 `models.build` is a hash of installed runtime source, so equal package versions can still be distinguished.
 
 Connection failures before sending can retry. Lost responses or partial writes stop immediately with unknown pricing.
+
+## Validate before running
+
+Run `qc-use validate qa/*.md --json` to check syntax and declared files offline.
+Validation does not check credentials, app routes, model access, or account state.
+Use `qc-use doctor qa/flow.md --json` for setup checks.
+
+## Browser Back and Reload
+
+Use separate steps for native browser navigation:
+
+```md
+1. Reload the page
+   - action: Reload the page
+   - expect: the saved display name is still present
+2. Go back in browser history
+   - action: Go back in browser history
+   - check: url contains /dashboard
+```
+
+Back requires a previous HTTP(S) history entry. These actions remain subject to allowed sites and never-do rules.
+Adapt the expected route to your actual history. Reload can repeat an app request, so use a disposable test fixture.

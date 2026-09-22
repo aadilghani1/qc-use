@@ -294,3 +294,18 @@ def test_screenshots_black_out_secret_values_or_are_not_saved():
     assert image.getpixel((25, 20))[0] < 60 and image.getpixel((90, 50))[0] > 200
     browser.evaluate.side_effect = StalePage("changed")
     assert runner.masked(browser, data, {"PASSWORD": "hunter22"}) is None
+
+
+@pytest.mark.parametrize("kind", ["back", "reload"])
+def test_navigation_controls_obey_allowed_sites_and_gate(tmp_path, monkeypatch, kind):
+    guard = guards.Guardrails(spec_for(tmp_path))
+    gate = Mock(return_value={guard.rules[0]: 0.99})
+    monkeypatch.setattr(judge, "gate", gate)
+    action = {"kind": kind, "id": kind, "label": kind, "href": "https://untrusted.example/"}
+    with pytest.raises(Blocked, match="outside"):
+        guard.before_act(action, {"url": "http://localhost:3000"}, {})
+    gate.assert_not_called()
+    action["href"] = "http://localhost:3000"
+    with pytest.raises(NeedsApproval):
+        guard.before_act(action, {"url": "http://localhost:3000"}, {})
+    gate.assert_called_once()

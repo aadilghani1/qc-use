@@ -11,7 +11,7 @@ def read_env_file(path):
     values = {}
     path = Path(path)
     if path.is_file():
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
@@ -22,7 +22,8 @@ def read_env_file(path):
 def load_env(directory):
     """Make `qa/.env` values available (keys included) without overriding the real environment."""
     for key, value in read_env_file(Path(directory) / ".env").items():
-        os.environ.setdefault(key, value)
+        if value:
+            os.environ.setdefault(key, value)
 
 
 def resolve(names, templates=(), tag=None):

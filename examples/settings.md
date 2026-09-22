@@ -1,15 +1,23 @@
 ---
-url: http://localhost:3000/login
-secrets: [LOGIN_EMAIL, LOGIN_PASSWORD]
+url: http://localhost:3000/dashboard
 ---
-# Change a setting
+# Save a display name
 
-A signed-in user changes the display name. The change must still be there when the user opens the page again.
+Use an authenticated dedicated profile. Adapt the route and labels to your app.
+Use a disposable test account. This test changes its display name.
 
-1. Sign in with LOGIN_EMAIL and LOGIN_PASSWORD
-   - expect: the app is signed in
-2. Open the profile settings and change the display name to "QA Tester"
-   - expect: the page confirms that the settings are saved
-3. Go to another page, then open the profile settings again
+1. Open Profile settings
+   - action: Click Profile settings
+   - check: url contains /settings
+2. Enter QA Tester in the display name field
+   - action: Enter QA Tester in the display name field
    - expect: the display name field shows QA Tester
-   - check: text does not contain Error
+3. Save the profile
+   - action: Click Save
+   - expect: the page confirms that the profile was saved
+4. Reload the page
+   - action: Reload the page
+   - expect: the display name field shows QA Tester
+5. Go back in browser history
+   - action: Go back in browser history
+   - check: url contains /dashboard

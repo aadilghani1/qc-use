@@ -12,12 +12,13 @@ def locations():
     home = Path.home()
     config = Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
     folders = {name: home / f".{name}" for name in TARGETS if name != "opencode"}
+    folders["codex"] = Path(os.environ.get("CODEX_HOME") or home / ".codex")
     folders["opencode"] = config / "opencode"
     return {name: (folder, folder / "skills" / "qc-use" / "SKILL.md") for name, folder in folders.items()}
 
 
 def text():
-    return SKILL.read_text()
+    return SKILL.read_text(encoding="utf-8")
 
 
 def install(targets=None, path=None):
@@ -34,7 +35,23 @@ def install(targets=None, path=None):
     lines = []
     for name, destination in destinations:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(text())
+        destination.write_text(text(), encoding="utf-8")
         lines.append(f"✓ {name}: {destination}")
     lines.append("Restart your coding agent, then ask it to QA a flow, e.g. “test our onboarding critical path”.")
     return lines
+
+
+def status():
+    """Compare installed skill copies with this package without changing them."""
+    result = []
+    for name, (folder, path) in locations().items():
+        if name != "agents" and not folder.is_dir():
+            continue
+        try:
+            state = "current" if path.read_text(encoding="utf-8") == text() else "outdated or modified"
+        except FileNotFoundError:
+            state = "missing"
+        except OSError:
+            state = "unreadable"
+        result.append({"agent": name, "path": str(path), "status": state})
+    return result

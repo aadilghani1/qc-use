@@ -164,3 +164,24 @@ DialKit is a development tool. It is excluded from the Python wheel.
 
 The interface uses short CSS transitions and honors reduced motion. Evidence disclosures keep their state during live updates.
 Design references: [Emil Kowalski](https://animations.dev/), [Shawn](https://www.shwn.design/), and [DialKit](https://www.dialkit.dev/agent).
+
+## Releases
+
+Update the version in `pyproject.toml` and `qc_use/__init__.py`, then run `uv lock`.
+Run all checks and review the installed wheel before tagging a release.
+
+```bash
+uv build
+uv venv /tmp/qc-use-install
+uv pip install --python /tmp/qc-use-install/bin/python dist/qc_use-0.2.0-py3-none-any.whl
+/tmp/qc-use-install/bin/python tools/check_install.py
+```
+
+CI checks installed wheels on Linux, macOS, and Windows. These checks cover CLI setup and skill files, not each agent's runtime.
+The Chrome fixture runs on Linux. Maintainers also run the live model demo before engine changes ship.
+
+After review and merge, a maintainer pushes a `v<version>` tag matching the package version.
+The release workflow runs checks, then attaches the wheel and source archive to a GitHub release.
+It does not publish to PyPI. A failed check prevents publication.
+Install a known release with `uv tool install --python 3.12 git+https://github.com/aadilghani1/qc-use@v<version>`.
+Replace `<version>` with an existing release tag. Refresh installed instructions with `qc-use skill install` after upgrading.

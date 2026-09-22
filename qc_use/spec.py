@@ -204,7 +204,7 @@ def parse_body(body):
 
 def load(path):
     path = Path(path)
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", source, re.S)
     if not match:
         raise SpecError(f"{path}: start the file with YAML front matter between --- lines (url: is required).")

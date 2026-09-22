@@ -99,7 +99,7 @@ class Guardrails(Policy):
         if action.get("href") and not self.sites.allows(action["href"]):
             raise Blocked(f"The link '{action['label']}' leads outside the allowed sites ({action['href']})")
         rules = self.active()
-        if action["kind"] not in {"click", "select", "fill", "upload"} or not rules:
+        if action["kind"] not in {"click", "select", "fill", "upload", "back", "reload"} or not rules:
             return  # Scrolling and waiting have no chosen mutation target.
         probabilities = judge.gate(page, self.goal, action, rules)
         self.gates.append({"action": action["label"], "url": page["url"], "probabilities": probabilities})

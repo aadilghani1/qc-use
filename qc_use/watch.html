@@ -8,7 +8,7 @@
 <style>
 :root{--ink:#252826;--muted:#707570;--line:#e6e8e3;--bg:#f7f8f5;--paper:#fff;--accent:#287852;--soft:#eaf4ed;--radius:14px;--motion:180ms;--ease:cubic-bezier(.23,1,.32,1)}
 .brand-icon svg,.step-icon svg{width:14px;height:14px}.symbol svg{width:32px;height:32px}#expand svg{width:12px;height:12px;vertical-align:-2px;margin-left:4px}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-button,summary{ -webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px}button:active{transform:scale(.97)}[hidden]{display:none!important}
+a.step-text{color:inherit;text-decoration:none}a.step-text:focus-visible{outline:2px solid var(--accent)}button,summary{ -webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px}button:active{transform:scale(.97)}[hidden]{display:none!important}
 .topbar{height:66px;padding:0 28px;display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--line);background:var(--paper)}.brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.7px;font-size:20px}.brand-icon{width:25px;height:25px;border:1.5px solid var(--accent);border-radius:8px;display:grid;place-items:center;color:var(--accent);font-size:16px}.divider{height:18px;width:1px;background:var(--line)}.quiet{color:var(--muted);font-size:12px}.topbar .quiet:last-child{margin-left:auto}.local-dot{display:inline-block;width:6px;height:6px;background:var(--accent);border-radius:50%;margin-right:6px}
 .heading{max-width:1680px;margin:auto;padding:27px 28px 24px;display:flex;align-items:center;justify-content:space-between;gap:24px}.eyebrow{color:var(--muted);font-size:11px;font-weight:600;letter-spacing:1.3px;text-transform:uppercase}h1{font-size:23px;line-height:1.3;font-weight:600;letter-spacing:-.7px;margin:7px 0 6px}.url{color:var(--muted);font:12px ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere}.run-meta{display:flex;align-items:center;gap:20px;flex-shrink:0}.clock{font-size:22px;font-weight:500;letter-spacing:-.5px;font-variant-numeric:tabular-nums}.clock small{font-size:12px;color:var(--muted)}.pill{display:inline-flex;align-items:center;gap:7px;border-radius:99px;background:#eef0eb;padding:6px 11px;font-size:12px;font-weight:600;white-space:nowrap}.pill:before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}.pill.running,.pill.pass{background:var(--soft);color:var(--accent)}.pill.fail{background:#fff0ed;color:#b43f30}.pill.blocked,.pill.inconclusive,.pill.needs_approval{background:#fff5e4;color:#926118}
 main{max-width:1680px;margin:auto;padding:0 28px 28px;display:grid;grid-template-columns:270px minmax(0,1fr) 264px;gap:20px;align-items:start}.panel{border:1px solid var(--line);background:var(--paper);border-radius:var(--radius);overflow:hidden;box-shadow:0 2px 3px #26332503}.panel-head{display:flex;justify-content:space-between;align-items:center;padding:17px 18px;border-bottom:1px solid var(--line)}h2{font-size:12px;font-weight:600;margin:0}.count{font:11px ui-monospace,SFMono-Regular,monospace;color:var(--muted)}.progress{height:2px;background:#eff1eb;overflow:hidden}.progress i{display:block;width:100%;height:100%;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform var(--motion) var(--ease)}
@@ -29,12 +29,13 @@ main{max-width:1680px;margin:auto;padding:0 28px 28px;display:grid;grid-template
 <aside class="side" aria-label="Run details"><section class="panel"><div class="panel-head"><h2>Current decision</h2><span class="count">Jev</span></div><div class="body"><p class="decision-label" id="decision-label">Getting ready</p><div class="hint" id="decision-hint">Reading the current page.</div><div id="targets"></div><details class="technical"><summary class="hint">Operation probabilities</summary><div id="operations"></div></details></div></section><section class="panel"><div class="panel-head"><h2>Recent actions</h2><span class="count" id="action-count">0</span></div><ol class="activity" id="actions"><li class="empty">Actions appear as the test runs.</li></ol></section></aside>
 </main>
 <script>
-const token=new URLSearchParams(location.search).get('t');
+const params=new URLSearchParams(location.search);const token=params.get('t');
+const stepQuery=params.has('step')?'&step='+encodeURIComponent(params.get('step')):'';
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const probability=p=>Math.max(0,Math.min(1,Number(p)||0));
 const pct=p=>`${Math.round(probability(p)*100)}%`;
-const labels={CLICK:'Click',TYPE_TEXT:'Enter text',SELECT:'Select',UPLOAD:'Upload',WAIT:'Wait',SCROLL_DOWN:'Scroll down',SCROLL_UP:'Scroll up',DONE:'Check the result',BLOCKED:'Unable to continue'};
+const labels={CLICK:'Click',TYPE_TEXT:'Enter text',SELECT:'Select',UPLOAD:'Upload',BACK:'Go back',RELOAD:'Reload',WAIT:'Wait',SCROLL_DOWN:'Scroll down',SCROLL_UP:'Scroll up',DONE:'Check the result',BLOCKED:'Unable to continue'};
 const states={running:'Running',pass:'Passed',fail:'Failed',blocked:'Blocked',inconclusive:'Inconclusive',needs_approval:'Needs approval',skipped:'Skipped',stopped:'Stopped'};
 const iconPaths={pass:'m5 12 4 4L19 6',fail:'m6 6 12 12 M6 18 18 6',blocked:'M8 5v14 M16 5v14',inconclusive:'M9 8a3 3 0 1 1 5 2c-1 1-2 1-2 3 M12 17h.01',needs_approval:'M12 5v9 M12 18h.01',skipped:'M5 12h14',expand:'M14 3h7v7 M21 3l-7 7 M10 21H3v-7 M3 21l7-7',collapse:'M21 10h-7V3 M14 10l7-7 M3 14h7v7 M10 14l-7 7'};
 function icon(name){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="${iconPaths[name]}"/></svg>`}
@@ -42,6 +43,7 @@ const rendered=new Map();let shot=-1,failures=0,finished=false;
 function html(id,value){if(rendered.get(id)===value)return;$(id).innerHTML=value;rendered.set(id,value)}
 function bars(rows){return rows.map(r=>`<div class="row"><div class="row-label"><span title="${esc(r.label)}">${esc(labels[r.label]||r.label)}</span><span>${pct(r.p)}</span></div><div class="meter"><i style="transform:scaleX(${probability(r.p)})"></i></div></div>`).join('')}
 function render(s){
+ document.querySelector('.eyebrow').textContent=s.saved?'Saved run':'Live run';document.title='qc-use · '+(s.saved?'saved':'live');
  $('title').textContent=s.title;$('url').textContent=s.url;
  const status=states[s.status]?s.status:'stopped';$('status').textContent=states[status];$('status').className=`pill ${status}`;
  $('clock').textContent=((s.elapsed_ms||0)/1000).toFixed(1);
@@ -52,22 +54,23 @@ function render(s){
   let li=$('steps').children[i];if(!li){li=document.createElement('li');li.innerHTML='<div class="step-head"><span class="step-icon" aria-hidden="true"></span><span class="step-text"></span></div><div class="step-state"></div><details><summary>Evidence</summary><div class="expect"></div></details><div class="reason"></div>';$('steps').append(li)}
   const state=step.outcome||(i===s.current&&status==='running'?'current':'');li.className=states[state]||state==='current'?state:'';
   li.querySelector('.step-icon').innerHTML=Object.hasOwn(iconPaths,step.outcome)?icon(step.outcome):String(i+1);li.querySelector('.step-text').textContent=step.text;
+  if(s.saved){let link=li.querySelector('a.step-text');if(!link){link=document.createElement('a');link.className='step-text';li.querySelector('.step-text').replaceWith(link)}link.textContent=step.text;link.href=`/?t=${encodeURIComponent(token)}&step=${i}`;if(i===s.current){link.setAttribute('aria-current','step');li.classList.add('current')}else link.removeAttribute('aria-current')}
   li.querySelector('.step-state').textContent=state==='current'?'In progress':states[state]||'Pending';
   const evidence=[...(step.expect||[]),...(step.checks||[]).map(c=>`${states[c.outcome]||c.outcome}: ${c.text}`)];
   li.querySelector('details').hidden=!evidence.length;li.querySelector('.expect').textContent=evidence.join(' · ');
   li.querySelector('.reason').textContent=step.reason||'';
  });
  if(s.page){$('page-title').textContent=s.page.title||'Untitled page';$('page-url').textContent=s.page.url||''}
- if(s.shot!==shot){shot=s.shot;const visible=s.has_screenshot===true;$('shot').hidden=!visible;$('empty-shot').hidden=visible;if(visible)$('shot').src=`/api/screenshot?t=${encodeURIComponent(token)}&n=${shot}`;else{$('shot').removeAttribute('src');$('image-message').textContent=s.screenshot_reason||'Preview withheld until the page can be safely masked.'}}
- const d=s.decision;$('decision-label').textContent=d?labels[d.operation]||d.operation:'Getting ready';
- $('decision-hint').textContent=d?`${d.latency_ms} ms · ${pct(d.confidence)} confidence`:'Reading the current page.';
- html('operations',d?bars(d.operations):'<p class="empty">Waiting for a decision.</p>');html('targets',d&&d.targets.length?bars(d.targets):'');
+ if(s.shot!==shot){shot=s.shot;const visible=s.has_screenshot===true;$('shot').hidden=!visible;$('empty-shot').hidden=visible;if(visible)$('shot').src=`/api/screenshot?t=${encodeURIComponent(token)}&n=${shot}${stepQuery}`;else{$('shot').removeAttribute('src');$('image-message').textContent=s.screenshot_reason||'Preview withheld until the page can be safely masked.'}}
+ const d=s.decision;$('decision-label').textContent=d?labels[d.operation]||d.operation:(s.saved?'Saved evidence':'Getting ready');
+ $('decision-hint').textContent=d?`${d.latency_ms} ms · ${pct(d.confidence)} confidence`:(s.saved?'Select a step to inspect its evidence.':'Reading the current page.');
+ html('operations',d?bars(d.operations):s.saved?'<p class="empty">Decision probabilities are available in the saved trace.</p>':'<p class="empty">Waiting for a decision.</p>');html('targets',d&&d.targets.length?bars(d.targets):'');
  $('action-count').textContent=s.action_count??s.actions.length;
  html('actions',s.actions.slice().reverse().map(a=>`<li><span class="action-op">${esc(labels[a.operation]||a.operation)}</span><strong>${esc(a.action)}</strong>${a.text?`<div>${esc(a.text)}</div>`:''}<small>${pct(a.probability)} · ${Number(a.latency_ms)||0} ms · ${a.page_changed===false?'no visible change':a.page_changed===true?'page changed':'change not confirmed'}</small></li>`).join('')||'<li class="empty">Actions appear as the test runs.</li>');
  $('summary').hidden=!s.summary;$('summary').textContent=s.summary||'';finished=status!=='running';
 }
 async function tick(){
- try{const response=await fetch(`/api/state?t=${encodeURIComponent(token)}`,{cache:'no-store'});if(!response.ok)throw Error('connection');render(await response.json());failures=0;$('connection').hidden=true}
+ try{const response=await fetch(`/api/state?t=${encodeURIComponent(token)}${stepQuery}`,{cache:'no-store'});if(!response.ok)throw Error('connection');render(await response.json());failures=0;$('connection').hidden=true}
  catch{failures++;$('connection').hidden=false;$('connection').textContent=failures<4?'Connection interrupted. Reconnecting…':'Live connection ended. The last received state is shown.'}
  if(!finished&&failures<12)setTimeout(tick,document.hidden?1500:350);
 }

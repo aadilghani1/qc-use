@@ -387,9 +387,12 @@ def test_three_unchanged_actions_stop_the_step():
     assert a.state["status"] == "blocked"
 
 
-def test_stale_observation_preserves_executed_action():
+@pytest.mark.parametrize("kind", ["click", "back", "reload"])
+def test_stale_observation_preserves_executed_action(kind):
     a = make_agent()
-    a.state["decision"] = decision("e3")
+    if kind != "click":
+        a.state["page"]["actions"].append({"id": "navigation", "kind": kind, "label": "Go"})
+    a.state["decision"] = decision("e3" if kind == "click" else "navigation", operation=kind.upper())
     a.browser.observe.side_effect = StalePage("changed")
     with pytest.raises(StalePage):
         a.act()
@@ -422,8 +425,7 @@ def test_observation_is_one_atomic_browser_read(monkeypatch):
     monkeypatch.setattr(browser, "cdp", cdp)
     actual = browser_operation({"operation": "observe", "session": "test", "screenshot": False})
     assert actual["actions"] == p["actions"]
-    assert cdp.call_count == 1
-    assert cdp.call_args.args[0] == "Runtime.evaluate"
+    assert [call.args[0] for call in cdp.call_args_list] == ["Runtime.evaluate", "Page.getNavigationHistory"]
 
 
 def test_executor_rejects_a_stale_page_before_browser_input(monkeypatch):
@@ -575,3 +577,48 @@ def test_recovered_model_decision_still_rejects_a_changed_page(monkeypatch):
         b.act(action, current)
     assert len(attempts) == 2
     operation.assert_not_called()
+
+
+@pytest.mark.parametrize("kind", ["back", "reload"])
+def test_navigation_uses_observed_controls_and_native_commands(monkeypatch, kind):
+    from qc_use.engine import browser, model
+
+    history = {
+        "currentIndex": 1,
+        "entries": [{"id": 3, "url": "http://localhost/first"}, {"id": 4, "url": "http://localhost/second"}],
+    }
+    action = {"id": kind, "kind": kind, "label": kind, "entry_id": 3, "href": "http://localhost/first"}
+    elements, targets, controls = model.action_space([action], {}, {})
+    assert not elements and not targets and controls[kind.upper()] == action
+    cdp = Mock(return_value=history)
+    monkeypatch.setattr(browser, "cdp", cdp)
+    browser_operation({"operation": "act", "session": "test", "action": action})
+    assert cdp.call_args.args[0] == ("Page.navigateToHistoryEntry" if kind == "back" else "Page.reload")
+    if kind == "back":
+        assert cdp.call_args.kwargs["entryId"] == 3
+
+
+def test_changed_history_stops_before_navigation(monkeypatch):
+    from qc_use.engine import browser
+
+    cdp = Mock(return_value={"currentIndex": 0, "entries": []})
+    monkeypatch.setattr(browser, "cdp", cdp)
+    with pytest.raises(StalePage, match="history changed"):
+        browser_operation(
+            {
+                "operation": "act",
+                "session": "test",
+                "action": {"id": "back", "kind": "back", "entry_id": 3, "href": "http://localhost/first"},
+            }
+        )
+    assert cdp.call_count == 1 and cdp.call_args.args[0] == "Page.getNavigationHistory"
+
+
+@pytest.mark.parametrize("url", ["about:blank", "javascript:alert(1)", "file:///tmp/private"])
+def test_history_never_offers_non_http_entries(url):
+    from qc_use.engine.browser import previous_entry
+
+    assert (
+        previous_entry({"currentIndex": 1, "entries": [{"id": 1, "url": url}, {"id": 2, "url": "http://localhost"}]})
+        is None
+    )

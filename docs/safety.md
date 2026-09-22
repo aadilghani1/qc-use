@@ -134,3 +134,13 @@ After a deadline expires, qc-use stops model requests and saves the run evidence
 Inspect account state before rerunning. Preflight cannot make signup or billing safe to repeat.
 
 Connection failures before sending can retry. Lost responses or partial writes stop immediately with unknown pricing.
+
+## Native navigation and saved evidence
+
+Back targets only an observed Chrome history entry. Code checks its ID and URL again before execution.
+Reload targets the current page. Both actions pass through the gate and allowed-site checks.
+Neither action accepts a model-generated URL. A navigation failure after input does not cause an automatic retry.
+
+Saved reports use the same loopback token and Host checks as the live view.
+The saved view serves local JPEG evidence inside the report folder. It never opens links from report data.
+Treat report files as private test artifacts. The view cannot remove secrets from files created outside qc-use.

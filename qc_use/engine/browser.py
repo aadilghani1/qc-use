@@ -14,7 +14,7 @@ from .contracts import Action, Page
 from .errors import StalePage
 
 # Atomically read visible content and controls, preserving actual DOM node identity.
-READ_STATE = Path(__file__).with_name("snapshot.js").read_text()
+READ_STATE = Path(__file__).with_name("snapshot.js").read_text(encoding="utf-8")
 MARKER = f"(() => {{ const state={READ_STATE}; return state?.marker ?? null; }})()"
 
 
@@ -222,6 +222,15 @@ class Browser:
             self.target = None
 
 
+def previous_entry(history):
+    """Offer only the immediate HTTP(S) history entry that Chrome observed."""
+    index = history.get("currentIndex", 0)
+    entries = history.get("entries", [])
+    if 0 < index < len(entries) and entries[index - 1]["url"].startswith(("http://", "https://")):
+        return entries[index - 1]
+    return None
+
+
 def fingerprint(state):
     content = {k: state[k] for k in ("url", "text", "actions", "scroll")}
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
@@ -245,6 +254,15 @@ def browser_operation(request):
     if operation == "act":
         action = request["action"]
         kind = action["kind"]
+        if kind == "back":
+            previous = previous_entry(call("Page.getNavigationHistory"))
+            if not previous or (previous["id"], previous["url"]) != (action.get("entry_id"), action.get("href")):
+                raise StalePage("Browser history changed. Observe again.")
+            call("Page.navigateToHistoryEntry", entryId=previous["id"])
+            return {"executed": action["id"]}
+        if kind == "reload":
+            call("Page.reload")
+            return {"executed": action["id"]}
         if kind == "upload":
             if type(action["node"]) is not int:
                 raise ValueError("Invalid observed node")
@@ -315,6 +333,17 @@ def browser_operation(request):
     info = evaluate(READ_STATE)
     if info is None:
         raise StalePage("Document is navigating")
+    previous = previous_entry(call("Page.getNavigationHistory"))
+    if previous:
+        info["actions"].append(
+            {
+                "id": "back",
+                "kind": "back",
+                "label": "Go back in browser history only when explicitly requested",
+                "entry_id": previous["id"],
+                "href": previous["url"],
+            }
+        )
     info["fingerprint"] = fingerprint(info)
     if request.get("screenshot", True):
         info["screenshot"] = call("Page.captureScreenshot", format="jpeg", quality=72)["data"]
