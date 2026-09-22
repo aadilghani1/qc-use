@@ -29,10 +29,11 @@ class Browser:
         self.after_input: Action | None = None
         self.on_dialog = on_dialog
         self.dialogs = []
-        self.target = cdp("Target.createTarget", url="about:blank", background=True)["targetId"]
+        # Activate the owned tab so headless Chrome also renders its screenshot surface.
+        self.target = cdp("Target.createTarget", url="about:blank", background=False)["targetId"]
         self.session = cdp("Target.attachToTarget", targetId=self.target, flatten=True)["sessionId"]
         self.call("Emulation.setDeviceMetricsOverride", width=1120, height=780, deviceScaleFactor=1, mobile=False)
-        # Keep rAF/menus rendering in an owned background tab, without activating the user's Chrome tab.
+        # Keep rAF and menus rendering when the private Chrome loses operating-system focus.
         self.call("Emulation.setFocusEmulationEnabled", enabled=True)
         # Page events report dialogs; Runtime and Network events become console, exception and HTTP signals.
         for domain in ("Page", "Runtime", "Network"):

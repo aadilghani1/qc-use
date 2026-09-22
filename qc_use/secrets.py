@@ -25,14 +25,19 @@ def load_env(directory):
         os.environ.setdefault(key, value)
 
 
-def resolve(names):
+def resolve(names, templates=(), tag=None):
     missing = [name for name in names if not os.environ.get(name)]
     if missing:
         raise KeyError(", ".join(missing))
     short = [name for name in names if len(os.environ[name]) < MIN_MASKED]
     if short:
         raise ValueError(f"Secrets must have at least {MIN_MASKED} characters: {', '.join(short)}. Nothing ran.")
-    return {name: os.environ[name] for name in names}
+    values = {name: os.environ[name] for name in names}
+    for name in templates:
+        if not tag or name not in values or "{tag}" not in values[name]:
+            raise ValueError(f"Secret template {name} needs a {{tag}} placeholder and a run tag.")
+        values[name] = values[name].replace("{tag}", tag)
+    return values
 
 
 class Redactor:

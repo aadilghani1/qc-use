@@ -9,14 +9,14 @@ qc-use has two layers:
 
 1. `qc-use run` reads the test file and checks it (`spec.py`).
 2. qc-use checks the URL, the secrets, and the key. If something is wrong, it stops with exit code 4.
-3. qc-use starts Chrome with a new, empty profile (`chrome.py`).
+3. qc-use starts Chrome with a new, empty profile (`chrome.py`). Its test tab is active so screenshots render in headless Chrome.
 4. For each step, the engine runs until Jev says that the step is done, or until the step cannot continue (`engine/agent.py`).
 5. qc-use checks the step on a fresh read of the page (`runner.py`, `judge.py`).
 6. qc-use writes the report (`report.py`) and closes Chrome.
 
 ## One decision
 
-Each decision is one request to Jev.
+Each action decision is one request to Jev. Independent checkpoint and result checks can make additional requests.
 
 1. **Read the page.** One script in the page (`engine/snapshot.js`) reads the visible text and the controls: links, buttons, fields, dropdowns, checkboxes, and file fields. Each element gets a number.
 2. **Ask Jev.** The request has several questions. All of them see the same page:
@@ -46,7 +46,8 @@ A browser dialog, such as `confirm()`, freezes the page. qc-use sends each input
 ## Checks after a step
 
 When a step is done, qc-use reads the page again and checks allowed sites and new tabs.
-Jev checks the step against its recorded actions, then checks each `expect:` line against the fresh page.
+Action steps require recorded input. Jev checks explicit `action:` requirements and `expect:` lines against the history and fresh page.
+Observation steps run checks without browser input. Exact checks run in code.
 Code checks each `check:` line. See [test-files.md](test-files.md#expectations).
 
 Jev's "done" and the checks are separate questions. The checks see a fresh page. After input, independent checks of recorded actions and current expectations can stop the step before another action.
@@ -62,3 +63,10 @@ Checks remain model judgments where exact checks are not available.
 - A private Chrome for each run, instead of a tab in your everyday Chrome.
 - Pydantic models for the test file, Jev answers, and the report.
 - Vercel AI Gateway as the default route for Jev and the text helper.
+
+## Capture and reporting
+
+Capture hides opaque content before taking fresh pixels, then masks known secret text and fields.
+It checks page stability and removes the temporary stylesheet. Changed pages return a withholding reason.
+Model attempts, retry delays, and pricing evidence are recorded. Model retries never repeat browser input.
+Ratings use observed content and check results, and label incomplete coverage.

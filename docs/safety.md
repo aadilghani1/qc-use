@@ -32,7 +32,9 @@ CLI headers, setup errors, and repeat summaries also mask declared secrets after
 - Jev chooses which secret goes into which field. Code types the value.
 - A password field accepts secrets only.
 - qc-use hides secret values in `report.md`, `report.json`, `trace.json`, and step screenshots. For screenshots, qc-use checks the page before and after a new capture and masks matching text and form values.
-  It omits changed pages and unsupported secret surfaces, including frames, images, canvas, video, custom elements, and generated CSS content.
+  Before capture, a temporary stylesheet hides generated content and opaque surfaces, including images, frames, canvas, and shadow hosts.
+  Known secret text and fields are covered in the saved image. The stylesheet is removed afterward.
+  Changed pages or masking failures omit the image and report a reason.
   Cached images are never masked against a later page.
   Exact matching cannot recognize transformed values or malicious page behavior. This is not protection against a hostile app.
 
@@ -115,3 +117,10 @@ The gate also checks `confirm()` dialogs, such as "Delete this workspace?".
 ## Report a security problem
 
 Read [SECURITY.md](../SECURITY.md).
+
+## Manual authentication and repeated signup
+
+Manual authentication requires visible Chrome, a dedicated `--profile`, and an interactive terminal.
+Only the user handles email codes or OAuth. Automated steps start after the handoff and still enforce allowed sites.
+Repeated runs require `repeat_safe: true`. This does not reset server accounts or authorize production signup or account deletion.
+Secret templates expand only explicitly named values. Their expanded values use the same redaction path.

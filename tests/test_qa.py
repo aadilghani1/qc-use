@@ -274,11 +274,11 @@ def test_a_step_passes_only_on_fresh_evidence(tmp_path, monkeypatch):
     spec = load(write(tmp_path, EXAMPLE))
     fresh = {"url": "http://localhost:3000/home", "title": "Home", "text": "Dashboard", "actions": []}
     browser = Mock(observe=Mock(return_value=fresh), new_tabs=Mock(return_value=[]))
-    monkeypatch.setattr(judge, "expectations", Mock(return_value=[0.1, 0.1]))
-    monkeypatch.setattr(runner, "SETTLE_SECONDS", 0)
+    monkeypatch.setattr(judge, "expectations", Mock(return_value=[0.1]))
+    spec.verify_timeout = 0
     checks, _ = runner.verify(spec, spec.steps[0], browser, "goal")
-    assert [(c.kind, c.outcome) for c in checks] == [("expect", "fail"), ("expect", "fail"), ("check", "pass")]
-    assert browser.observe.call_count == 2  # One read-only re-check, then the answer stands.
+    assert [(c.kind, c.outcome) for c in checks] == [("action", "fail"), ("expect", "fail"), ("check", "pass")]
+    assert browser.observe.call_count == 1  # A zero timeout makes one fresh observation.
 
 
 def test_screenshots_black_out_secret_values_or_are_not_saved():
@@ -290,7 +290,7 @@ def test_screenshots_black_out_secret_values_or_are_not_saved():
         call=Mock(return_value={"data": data}),
     )
     image = Image.open(io.BytesIO(runner.masked(browser, data, {"PASSWORD": "hunter22"})))
-    assert "hunter22" in browser.evaluate.call_args.args[0]
+    assert any("hunter22" in c.args[0] for c in browser.evaluate.call_args_list)
     assert image.getpixel((25, 20))[0] < 60 and image.getpixel((90, 50))[0] > 200
     browser.evaluate.side_effect = StalePage("changed")
     assert runner.masked(browser, data, {"PASSWORD": "hunter22"}) is None

@@ -57,7 +57,7 @@ def test_generic_text_provider_gets_no_vendor_reasoning_fields(monkeypatch):
     assert not {"reasoning", "thinking", "reasoning_effort"} & post.call_args.args[2].keys()
 
 
-@pytest.mark.parametrize("result", [{}, [], {"model": "jev", "answers": None}, {"model": "jev", "answers": {"x": []}}])
+@pytest.mark.parametrize("result", [{}, [], {"model": "jev", "answers": None}])
 def test_jev_envelope_rejects_malformed_answers(result):
     with pytest.raises(ValueError, match="Invalid TypeSafe"):
         model.jev_response(result)
@@ -342,6 +342,7 @@ def test_fill_and_upload_gate_runs_before_input(spec, monkeypatch, kind):
 def test_cli_masks_headers_setup_errors_and_repeat_summaries(
     spec, fake_run, monkeypatch, tmp_path, capsys, setup_error
 ):
+    spec.repeat_safe = True
     secret = "private-review-password"
     monkeypatch.setenv("PASSWORD", secret)
     spec.secrets = ["PASSWORD"]
@@ -360,3 +361,44 @@ def test_cli_masks_headers_setup_errors_and_repeat_summaries(
         assert "[secret:PASSWORD]" in captured.err
     else:
         assert "Pass rate for Run [secret:PASSWORD]: 2/2" in captured.out
+
+
+def test_manual_auth_finishes_before_observation(spec, fake_run, tmp_path):
+    def handoff():
+        fake_run.observe.assert_not_called()
+        fake_run.call.assert_called_once_with("Page.bringToFront")
+
+    report = runner.run(spec, results_dir=tmp_path, screenshots=False, echo=lambda *_: None, manual_auth=handoff)
+    assert report.outcome == "pass"
+    fake_run.observe.assert_called_once()
+
+
+def test_manual_auth_eof_writes_blocked_report(spec, fake_run, tmp_path):
+    report = runner.run(
+        spec, results_dir=tmp_path, screenshots=False, echo=lambda *_: None, manual_auth=Mock(side_effect=EOFError)
+    )
+    assert report.outcome == "blocked" and "Manual sign-in cancelled" in report.steps[0].reason
+    assert (tmp_path / report.run_id / "report.json").is_file()
+    fake_run.observe.assert_not_called()
+
+
+@pytest.mark.parametrize("answer", [None, [], "invalid"])
+def test_malformed_selected_answer_cannot_execute(answer):
+    response = model.jev_response({"model": "jev", "answers": {"operation": answer}})
+    with pytest.raises(ValueError, match="Invalid TypeSafe"):
+        model.validate_choice(response["answers"]["operation"], {"CLICK"})
+
+
+def test_private_browser_activates_its_capture_surface(monkeypatch):
+    monkeypatch.setattr(browser, "ensure_daemon", Mock())
+    calls = Mock(
+        side_effect=lambda method, **_: {
+            "Target.createTarget": {"targetId": "owned"},
+            "Target.attachToTarget": {"sessionId": "session"},
+            "Runtime.evaluate": {"result": {"value": "complete"}},
+        }.get(method, {})
+    )
+    monkeypatch.setattr(browser, "cdp", calls)
+    instance = browser.Browser("http://localhost:3000")
+    assert instance.target == "owned"
+    assert calls.call_args_list[0].kwargs == {"url": "about:blank", "background": False}

@@ -54,7 +54,7 @@ class Watch:
         webbrowser.open(url)
         return watch
 
-    def __call__(self, index, state, image=None):
+    def __call__(self, index, state, image=None, image_reason=None):
         """Called by the runner after every tick of the current step, with a masked JPEG of the page."""
         last = state["decisions"][-1] if state["decisions"] else None
         decision = None
@@ -94,6 +94,7 @@ class Watch:
             self.screenshot = image or b""
             self.state["shot"] += 1
             self.state["has_screenshot"] = bool(image)
+            self.state["screenshot_reason"] = redact(image_reason)
 
     def record(self, result):
         with self.lock:

@@ -43,7 +43,7 @@ class JevResponse(BaseModel):
     """The shared response envelope for choice, noul, and score requests."""
 
     model: str
-    answers: dict[str, dict]
+    answers: dict[str, object]
     usage: dict = Field(default_factory=dict)
 
 

@@ -67,7 +67,7 @@ qc-use doctor qa/onboarding.md
 ## 5. Try the demo
 
 ```bash
-qc-use demo --headless --results /tmp/qc-use-demo
+qc-use demo --watch --results /tmp/qc-use-demo
 ```
 
 The demo starts a small app on port 3100 and runs 3 tests. You see a pass, a fail, and a stop for approval. `qc-use demo` exits with code 0 when all 3 outcomes are as expected.
@@ -107,3 +107,5 @@ uv tool uninstall qc-use
 ```
 
 Then delete the `SKILL.md` files that `qc-use skill install` listed.
+
+Use `--headless` to hide Chrome. The `--watch` inspector is independent. Do not set `BROWSER=true` when automatic opening is wanted.

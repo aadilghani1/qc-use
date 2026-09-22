@@ -10,10 +10,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 Signal = Literal["console_error", "js_exception", "http_4xx", "http_5xx", "request_failed"]
 CHECK = re.compile(
-    r"^(?P<subject>url|title|text)\s+(?P<verb>contains|matches|does not contain|absent)\s+(?P<value>.+)$", re.I
+    r"^(?P<subject>url|title|text|document)\s+(?P<verb>contains|matches|does not contain|absent)\s+(?P<value>.+)$", re.I
 )
 STEP = re.compile(r"^(\d+)[.)]\s+(.+)$")
-DETAIL = re.compile(r"^\s+[-*]\s+(expect|check):\s*(.+)$", re.I)
+DETAIL = re.compile(r"^\s+[-*]\s+(expect|check|action|mode):\s*(.+)$", re.I)
 
 
 class SpecError(ValueError):
@@ -34,7 +34,7 @@ class SettingsModel(BaseModel):
 class Check(SettingsModel):
     """A deterministic check on the page after a step. Counts and dates belong here, not in `expect:`."""
 
-    subject: Literal["url", "title", "text"]
+    subject: Literal["url", "title", "text", "document"]
     verb: Literal["contains", "matches", "absent"]
     value: str = Field(min_length=1)
 
@@ -63,7 +63,12 @@ class Check(SettingsModel):
         return f"{self.subject} {verb} {self.value}"
 
     def evaluate(self, page):
-        subject = {"url": page["url"], "title": page["title"], "text": page["text"]}[self.subject]
+        key = "document_text" if self.subject == "document" else self.subject
+        if key not in page:
+            raise ValueError(f"{self.subject} evidence is unavailable; check cannot pass.")
+        subject = page[key]
+        if self.verb == "absent" and page.get(f"{key}_truncated", False):
+            raise ValueError(f"{self.subject} evidence is truncated; absence cannot be proved.")
         if self.verb == "matches":
             return re.search(self.value, subject) is not None
         found = self.value.casefold() in subject.casefold()
@@ -72,8 +77,16 @@ class Check(SettingsModel):
 
 class Step(SettingsModel):
     text: str = Field(min_length=1)
+    mode: Literal["act", "observe"] = "act"
+    action: list[str] = []
     expect: list[str] = []
     check: list[Check] = []
+
+    @model_validator(mode="after")
+    def observation_contract(self):
+        if self.mode == "observe" and (self.action or not (self.expect or self.check)):
+            raise ValueError("observe steps need expect/check evidence and cannot require actions")
+        return self
 
 
 class Rating(SettingsModel):
@@ -127,8 +140,18 @@ class TestSpec(SettingsModel):
     fail_on: list[Signal] = []
     budget: Budget = Budget()
     bands: Bands = Bands()
+    verify_timeout: float = Field(8, ge=0, le=120)
+    max_model_calls: int = Field(200, ge=1, le=2000)
+    repeat_safe: bool = False
+    secret_templates: list[str] = []
     max_cost: float = Field(0.25, gt=0, allow_inf_nan=False)
     steps: list[Step] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def declared_templates(self):
+        if set(self.secret_templates) - set(self.secrets):
+            raise ValueError("secret_templates must name declared secrets")
+        return self
 
     @field_validator("url")
     @classmethod
@@ -165,10 +188,13 @@ def parse_body(body):
         if line.startswith("# ") and title is None and not steps:
             title = line[2:].strip()
         elif match := STEP.match(line):
-            steps.append({"text": match[2].strip(), "expect": [], "check": []})
+            steps.append({"text": match[2].strip(), "expect": [], "check": [], "action": []})
         elif (match := DETAIL.match(line)) and steps:
             kind, value = match[1].lower(), match[2].strip()
-            steps[-1][kind].append(Check.parse(value) if kind == "check" else unquote(value))
+            if kind == "mode":
+                steps[-1][kind] = unquote(value)
+            else:
+                steps[-1][kind].append(Check.parse(value) if kind == "check" else unquote(value))
         elif steps and line.startswith((" ", "\t")):
             steps[-1]["text"] += " " + line.strip()
         elif not steps:

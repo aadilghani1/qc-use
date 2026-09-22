@@ -6,7 +6,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from . import __version__, judge
+from . import __version__, build_identity, judge
 from .capture import masked, screenshot
 from .chrome import Chrome, connect, disconnect
 from .engine import model
@@ -28,16 +28,13 @@ from .report import (
     plural,
 )
 from .secrets import Redactor, resolve
+from .verification import band, check_page, verify
 
-SETTLE_SECONDS = 1.0  # One read-only re-check for pages that finish rendering just after DONE.
+__all__ = ["SetupError", "band", "masked", "run", "verify"]
 
 
 class SetupError(RuntimeError):
     """Nothing ran: the test, its secrets, its keys, or its target URL are not ready."""
-
-
-def band(p, bands):
-    return "pass" if p >= bands.pass_at else "fail" if p <= bands.fail_at else "inconclusive"
 
 
 def compose_goal(spec, index, results, tag):
@@ -52,34 +49,13 @@ def compose_goal(spec, index, results, tag):
     if results:
         lines.append("Already done: " + " ".join(f"{r.index}. {r.text} ({r.outcome})." for r in results))
     lines.append(f"Current step, the only goal now: {step.text}")
+    if step.action:
+        lines.append("Required recorded actions: " + "; ".join(step.action) + ".")
     if step.expect:
         lines.append("Done when: " + "; ".join(step.expect) + ".")
     if index + 1 < len(spec.steps):
         lines.append("Choose DONE as soon as this step is complete. Later steps are not part of this goal.")
     return "\n".join(lines)
-
-
-def verify(spec, step, browser, goal, guard=None, history=()):
-    """Check the step on fresh observations. DONE is a claim; these answers are the evidence."""
-    statements = [step.text, *step.expect] if step.expect else [step.text]
-    kind = "expect" if step.expect else "implicit"
-    for attempt in range(2):
-        page = browser.observe(screenshot=False)
-        (guard or Guardrails(spec)).after_observe(page)
-        if tabs := browser.new_tabs():
-            raise Blocked(f"unsupported: the page opened a new tab or window ({tabs[0]})")
-        checks = [
-            CheckResult(kind=kind, text=text, probability=round(p, 4), outcome=band(p, spec.bands))
-            for text, p in zip(
-                statements, judge.expectations(page, goal, statements, history, action_statement=step.text), strict=True
-            )
-        ]
-        checks += [
-            CheckResult(kind="check", text=str(c), outcome="pass" if c.evaluate(page) else "fail") for c in step.check
-        ]
-        if all(c.outcome == "pass" for c in checks) or attempt:
-            return checks, page
-        time.sleep(SETTLE_SECONDS)
 
 
 def run_step(spec, index, browser, guard, page, history, results, context):
@@ -92,12 +68,7 @@ def run_step(spec, index, browser, guard, page, history, results, context):
     first_action = len(history)
 
     def complete(current):
-        if not all(check.evaluate(current) for check in step.check):
-            return False
-        probabilities = judge.expectations(
-            current, goal, [step.text, *step.expect], history[first_action:], action_statement=step.text
-        )
-        return all(band(p, spec.bands) == "pass" for p in probabilities)
+        return all(c.outcome == "pass" for c in check_page(spec, step, current, goal, history[first_action:]))
 
     agent = Agent(
         browser,
@@ -109,17 +80,20 @@ def run_step(spec, index, browser, guard, page, history, results, context):
         files=spec.files,
         policy=guard,
         screenshots=context["live"] is not None,
-        done_when=[step.text, *step.expect, *(str(c) for c in step.check)],
+        done_when=[step.text, *step.action, *step.expect, *(str(c) for c in step.check)],
         completion_check=complete,
     )
     outcome, reason, checks, approval, final = "blocked", None, [], None, None
     try:
-        if remaining <= 0:
+        if remaining <= 0 and step.mode == "act":
             raise Blocked(f"Reached the test's budget of {spec.budget.test} actions")
-        for state in agent.run():
+        if step.mode == "observe":
+            agent.state["status"] = "done"
+        for state in () if step.mode == "observe" else agent.run():
             if context["live"]:
                 shot = (state["page"] or {}).get("screenshot")
-                context["live"](index, state, masked(browser, shot, context["secrets"]) if shot else None)
+                image = masked(browser, shot, context["secrets"]) if shot else None
+                context["live"](index, state, image, image_reason=getattr(browser, "capture_reason", None))
         if agent.state["status"] == "done":
             checks, final = verify(spec, step, browser, goal, guard, history[agent.state["first_action"] :])
             outcome = next((o for o in ("fail", "inconclusive") if any(c.outcome == o for c in checks)), "pass")
@@ -170,12 +144,15 @@ def run_step(spec, index, browser, guard, page, history, results, context):
         decisions=len(agent.state["decisions"]),
         elapsed_ms=round((time.perf_counter() - started) * 1000),
         url=(final or agent.state["page"] or {}).get("url"),
+        evidence=judge.page_state(final or agent.state["page"]) if (final or agent.state["page"]) else {},
         screenshot=(
             screenshot(browser, final, folder, f"{index + 1:02d}.jpg", context["secrets"])
             if context["screenshots"]
             else None
         ),
     )
+    if context["screenshots"] and not result.screenshot:
+        result.screenshot_reason = getattr(browser, "capture_reason", "Capture unavailable.")
     trace = {
         "goal": goal,
         "decisions": agent.state["decisions"],
@@ -185,14 +162,17 @@ def run_step(spec, index, browser, guard, page, history, results, context):
     return result, approval, (final or agent.state["page"]), trace
 
 
-def rate(spec, results, elapsed_ms):
+def rate(spec, results, elapsed_ms, issues=None):
     summary = {
         "persona": spec.persona,
         "intent": spec.intent,
         "total_seconds": round(elapsed_ms / 1000, 1),
+        "coverage": {"passed": sum(r.outcome == "pass" for r in results), "total": len(spec.steps)},
         "steps": [
             {
                 "step": r.text,
+                "evidence": r.evidence,
+                "checks": [c.model_dump() for c in r.checks],
                 "outcome": r.outcome,
                 "actions": len(r.actions),
                 "waits": sum(a.kind == "wait" for a in r.actions),
@@ -208,7 +188,7 @@ def rate(spec, results, elapsed_ms):
         ],
     }
     ratings = []
-    for name, answer in judge.ratings(summary, spec.rate).items():
+    for name, answer in judge.ratings(summary, spec.rate, issues).items():
         rating = spec.rate[name]
         level = max(range(len(rating.levels)), key=lambda i: answer.probabilities[str(i)])
         outcome = "info" if rating.min is None else "pass" if level >= rating.levels.index(rating.min) else "fail"
@@ -223,6 +203,9 @@ def rate(spec, results, elapsed_ms):
                 confidence=round(answer.confidence, 4),
                 minimum=rating.min,
                 outcome=outcome,
+                partial=any(r.outcome != "pass" for r in results),
+                completed_steps=sum(r.outcome == "pass" for r in results),
+                total_steps=len(spec.steps),
             )
         )
     return ratings
@@ -255,6 +238,7 @@ def run(
     approve=None,
     profile=None,
     headless=False,
+    manual_auth=None,
     results_dir="qa-results",
     live=None,
     screenshots=True,
@@ -265,8 +249,9 @@ def run(
             f"{spec.url} looks like a production site. Test against localhost, staging, or a preview deployment, "
             "or set allow_production: true in the test (or pass --allow-production) if you really mean it."
         )
+    tag = tokens.token_hex(6)
     try:
-        secrets = resolve(spec.secrets)
+        secrets = resolve(spec.secrets, spec.secret_templates, tag)
     except ValueError as error:
         raise SetupError(str(error)) from None
     except KeyError as error:
@@ -281,7 +266,7 @@ def run(
     run_id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-") + tokens.token_hex(2)
     out = Path(results_dir) / run_id
     (out / "steps").mkdir(parents=True)
-    redact, meter = Redactor(secrets), model.Meter(spec.max_cost)
+    redact, meter = Redactor(secrets), model.Meter(spec.max_cost, spec.max_model_calls)
     raw_echo = echo
 
     def safe_echo(message):
@@ -292,10 +277,11 @@ def run(
     model.configure(redact=redact, meter=meter)
     safe_approve = (lambda rule, action, p: approve(redact.text(rule), redact.text(action), p)) if approve else None
     guard = Guardrails(spec, allow, safe_approve)
-    context = {"tag": tokens.token_hex(3), "secrets": secrets, "out": out, "live": live, "screenshots": screenshots}
+    context = {"tag": tag, "secrets": secrets, "out": out, "live": live, "screenshots": screenshots}
     started, started_at = time.perf_counter(), datetime.now(UTC).isoformat(timespec="seconds")
     results, traces, approval, browser, chrome = [], [], None, None, None
     ratings: list[RatingResult] = []
+    rating_issues: dict[str, dict] = {}
     cleanup_errors: list[str] = []
     try:
         chrome = Chrome(profile=profile, headless=headless)
@@ -303,6 +289,14 @@ def run(
         from .engine.browser import Browser
 
         browser = Browser(spec.url, on_dialog=guard.on_dialog)
+        if manual_auth:
+            browser.call("Page.bringToFront")
+            try:
+                manual_auth()
+            except EOFError:
+                raise RuntimeError(
+                    "Manual sign-in cancelled. Run again in an interactive terminal; no test input executed."
+                ) from None
         history: list[dict] = []
         try:
             page = browser.observe(screenshot=live is not None)
@@ -330,12 +324,14 @@ def run(
         ratings = []
         if spec.rate and not context.get("interrupted"):
             try:
-                ratings = rate(spec, results, round((time.perf_counter() - started) * 1000))
+                ratings = rate(spec, results, round((time.perf_counter() - started) * 1000), rating_issues)
             except (model.BudgetExceeded, RuntimeError, ValueError) as error:
                 safe_echo(f"  Ratings unavailable: {error}")
-                if any(r.min is not None for r in spec.rate.values()) and all(r.outcome == "pass" for r in results):
-                    results[-1].outcome = "inconclusive"
-                    results[-1].reason = "A required rating could not be checked."
+                rating_issues.update({name: {"reason": str(error)} for name in spec.rate})
+            missing_required = any(spec.rate[name].min is not None for name in rating_issues)
+            if missing_required and all(r.outcome == "pass" for r in results):
+                results[-1].outcome = "inconclusive"
+                results[-1].reason = "A required rating could not be checked."
     except (RuntimeError, ValueError, TimeoutError, OSError, KeyboardInterrupt) as error:
         context["interrupted"] = isinstance(error, KeyboardInterrupt)
         reason = "Run interrupted." if context["interrupted"] else str(error)
@@ -372,21 +368,36 @@ def run(
         summary=summary,
         steps=results,
         ratings=ratings,
+        rating_issues=rating_issues,
         approval=approval,
         cost=Cost(
-            usd=round(meter.usd, 6),
+            usd=meter.usd,
             estimated=meter.estimated,
             model_calls=meter.calls,
             unpriced_calls=meter.unpriced,
             cap=spec.max_cost,
+            requests=len(meter.requests),
+            request_cap=spec.max_model_calls,
+            pricing=meter.pricing,
         ),
-        models={"policy": policy_model, "route": route, "text": model.text_settings()[1], "qc_use": __version__},
+        models={
+            "policy": policy_model,
+            "route": route,
+            "text": model.text_settings()[1],
+            "qc_use": __version__,
+            "build": build_identity(),
+        },
         artifacts={"json": "report.json", "markdown": "report.md", "trace": "trace.json", "folder": str(out)},
     )
     # One more redaction pass on everything written to disk.
     report = report.redacted(redact)
     (out / "report.json").write_text(report.model_dump_json(indent=2))
     (out / "report.md").write_text(markdown(report))
-    trace = {"test": spec.model_dump(mode="json"), "gates": guard.gates, "steps": traces}
+    trace = {
+        "test": spec.model_dump(mode="json"),
+        "gates": guard.gates,
+        "steps": traces,
+        "model_requests": meter.requests,
+    }
     (out / "trace.json").write_text(json.dumps(redact(trace), indent=2, default=str))
     return report

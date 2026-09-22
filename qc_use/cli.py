@@ -48,6 +48,19 @@ def run_command(args):
         load_env(spec.path.parent)
         load_env(Path.cwd())
         redact = Redactor({name: os.environ.get(name, "") for name in spec.secrets})
+        if args.repeat > 1 and not spec.repeat_safe:
+            print(
+                "qc-use: repeat needs repeat_safe: true and equivalent test account state for each run.",
+                file=sys.stderr,
+            )
+            codes.append(SETUP_ERROR)
+            continue
+        if args.manual_auth and (args.headless or not args.profile or not interactive):
+            print(
+                "qc-use: --manual-auth needs an interactive terminal, --profile, and visible Chrome.", file=sys.stderr
+            )
+            codes.append(SETUP_ERROR)
+            continue
         for attempt in range(args.repeat):
             label = f" (run {attempt + 1}/{args.repeat})" if args.repeat > 1 else ""
             echo(f"qc-use · {spec.title}{label} · {spec.url}")
@@ -64,6 +77,9 @@ def run_command(args):
                     approve=ask_person if interactive else None,
                     profile=args.profile,
                     headless=args.headless,
+                    manual_auth=(lambda: input("Sign in in the private Chrome window, then press Enter here: "))
+                    if args.manual_auth
+                    else None,
                     results_dir=args.results,
                     live=live,
                     screenshots=not args.no_screenshots,
@@ -83,7 +99,7 @@ def run_command(args):
                 live.finish(report)
             reports.append(report)
             codes.append(report.exit_code)
-            cost = f"${report.cost.usd:.4f}{' est.' if report.cost.estimated else ''}"
+            cost = f"${report.cost.usd:.8f}{' est.' if report.cost.estimated else ''}"
             seconds = report.elapsed_ms / 1000
             echo(f"{MARK[report.outcome]} {report.outcome} · {report.summary} ({seconds:.1f} s, {cost})")
             echo(f"   {Path(report.artifacts['folder']) / 'report.md'}\n")
@@ -112,7 +128,7 @@ def init_command(args):
 def demo_command(args):
     from .demo import main
 
-    return main(port=args.port, serve_only=args.serve, headless=args.headless, results=args.results)
+    return main(port=args.port, serve_only=args.serve, headless=args.headless, results=args.results, watch=args.watch)
 
 
 def skill_command(args):
@@ -167,10 +183,17 @@ def parser():
     )
     run.add_argument("--allow-production", action="store_true", help="Run against a URL that looks like production.")
     run.add_argument("--profile", help="Reuse a Chrome profile folder instead of a fresh one (e.g. to stay logged in).")
+    run.add_argument(
+        "--manual-auth", action="store_true", help="Pause in visible Chrome for manual sign-in before testing."
+    )
     run.add_argument("--headless", action="store_true", help="Run Chrome without a window.")
     run.add_argument("--watch", action="store_true", help="Open the live inspector while the test runs.")
     run.add_argument(
-        "--repeat", type=int, default=1, metavar="N", help="Run N times in fresh profiles and report a pass rate."
+        "--repeat",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Run N times; requires repeat_safe: true. Profiles do not reset server accounts.",
     )
     run.add_argument("--results", default="qa-results", help="Where run folders are written (default qa-results).")
     run.add_argument("--no-screenshots", action="store_true", help="Do not save step screenshots.")
@@ -185,6 +208,7 @@ def parser():
     demo.add_argument("--serve", action="store_true", help="Only serve the demo app.")
     demo.add_argument("--port", type=int, default=3100)
     demo.add_argument("--headless", action="store_true")
+    demo.add_argument("--watch", action="store_true", help="Open the live inspector for each demo run.")
     demo.add_argument("--results", default="qa-results", help="Where demo run folders are written.")
     demo.set_defaults(handler=demo_command)
 

@@ -87,11 +87,30 @@ After the step, qc-use reads the page again. Jev answers a yes-or-no question fo
 | 0.2 or less | fail |
 | between 0.2 and 0.8 | inconclusive |
 
-If an expectation does not pass, qc-use waits 1 second, reads the page again, and asks one more time. This helps with pages that finish loading late. qc-use never counts "inconclusive" as a pass.
+If checks do not pass, qc-use rereads the page until `verify_timeout` expires. The default is eight seconds.
+An in-flight check may finish after this polling window. Only reads and model questions repeat. Browser input does not repeat. An inconclusive check never becomes a pass by timeout.
 
-qc-use also checks the step text against the recorded actions. An already-visible destination does not prove that a requested action occurred.
-If a step has no `expect:` line, the report calls its check an `implicit` check.
-Observation-only steps can pass without input.
+An action step requires recorded input. Use `action:` to require a specific action, verified against this step's history.
+With explicit `expect:` or `check:` lines, the prose instruction is not an extra hidden expectation.
+With no declared outcomes or actions, qc-use uses the instruction as an `implicit` check.
+
+An observation step uses `mode: observe`. It runs checks without asking Jev to act.
+It requires an `expect:` or `check:` and cannot contain `action:`.
+
+```md
+1. Read the hero section
+   - mode: observe
+   - check: text contains Your agent froze
+2. Reject cookies
+   - action: Click Reject All
+   - expect: the cookie banner is closed
+3. Open signup
+   - action: Click Start free
+   - check: text contains Create your agent account
+```
+
+Put ordered actions in separate steps. Do not combine cookie handling, navigation, and waiting into one instruction.
+Do not duplicate an exact fact as a model expectation. Reserve `expect:` for facts that need semantic judgment.
 
 ## Exact checks
 
@@ -105,7 +124,10 @@ A `check:` line is a rule that code checks exactly. Use exact checks for URLs, c
 | `text contains X` | `check: text contains "3 items"` |
 | `text does not contain X` | `check: text does not contain Error` |
 
-The text checks look at the visible text of the page. They ignore upper and lower case.
+`text` checks use the current viewport, capped at 6,000 characters. Off-screen content is not included.
+`document contains X` checks rendered document text, including off-screen content, capped at 20,000 characters.
+Neither scope enters frames or shadow roots. Text comparisons ignore case.
+An absence check on truncated text is unavailable, rather than a false proof that text is missing.
 
 ## Secrets
 
@@ -181,3 +203,50 @@ If this required rating cannot be checked, an otherwise passing run becomes inco
 - Use test accounts only. qc-use really clicks the buttons.
 - Keep secrets out of step text. Use the secret's name.
 - Start with `qc-use run --watch` to see what Jev sees.
+
+## Waiting, repeat runs, and test accounts
+
+Settings:
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `verify_timeout` | `8` | Polling window in seconds, from 0 to 120. In-flight checks may finish later. |
+| `max_model_calls` | `200` | Maximum HTTP model attempts, including retries. |
+| `repeat_safe` | `false` | Required for `--repeat N` when N exceeds one. |
+| `secret_templates` | `[]` | Declared secret names whose `{tag}` placeholder expands per run. |
+
+`repeat_safe: true` declares that each run has equivalent account state. It does not reset the app or create fixtures.
+Use staging accounts or an existing disposable fixture workflow. Do not repeat production signup to measure reliability.
+Fresh browser profiles reset browser state, not server accounts. `--profile` reuses browser state too.
+
+For a staging signup mailbox, set `SIGNUP_EMAIL=qa+{tag}@example.test` in the ignored environment file.
+Declare `secrets: [SIGNUP_EMAIL]` and `secret_templates: [SIGNUP_EMAIL]`.
+Only declared templates expand. Passwords remain literal unless explicitly declared as templates.
+The expanded value is redacted like every other secret. Aliases must be supported by your staging authentication system.
+
+For email codes or OAuth, use manual authentication before an authenticated continuation test:
+
+```bash
+qc-use run qa/after-login.md --profile /tmp/qc-use-test-profile --manual-auth --watch
+```
+
+This requires an interactive terminal and visible Chrome. Sign in yourself, then press Enter in the terminal.
+Use a dedicated test profile. Do not use your everyday Chrome profile.
+The automated checks start after this handoff; the report does not prove automated signup or login.
+`mode: observe` can verify the initial authenticated state before later action steps.
+
+## Rating and cost evidence
+
+Unavailable ratings appear in `rating_issues`, including redacted rejected answers where available.
+Valid sibling ratings remain available. Required rating failures make otherwise passing runs inconclusive.
+Ratings show partial coverage and low confidence. Their input includes redacted observed content and check results.
+These are model judgments, not user research or measured conversion intent.
+
+The report preserves numeric cost precision and lists provider, estimated, reported-zero, and unavailable pricing evidence.
+`trace.json` records model attempts, status, retry delay, timing, token usage, and cost evidence.
+HTTP 429, 503, 529, and transport failures get at most three attempts. Retry-After waits are capped at ten seconds.
+Retries never replay browser actions. The request cap remains active when reported cost is zero.
+The spend cap uses provider-reported or estimated cost; it is not a prepaid ceiling or proof of eventual billing.
+
+Reports use `qc-use.report/2`. Checks distinguish `action`, `expect`, `implicit`, `check`, and `signal` evidence.
+`models.build` is a hash of installed runtime source, so equal package versions can still be distinguished.

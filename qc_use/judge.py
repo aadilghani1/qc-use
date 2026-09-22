@@ -57,8 +57,9 @@ def probability(answers, name):
         raise ValueError(f"Invalid TypeSafe answer for {name}.") from None
 
 
-def expectations(page, goal, statements, history=(), action_statement=None):
+def expectations(page, goal, statements, history=(), action_statement=None, action_statements=()):
     """P(the fresh page shows each statement is true). Missing evidence counts toward false."""
+    action_statements = set(action_statements) | ({action_statement} if action_statement else set())
     questions = {
         f"e{i}": {
             "type": "noul",
@@ -76,12 +77,12 @@ def expectations(page, goal, statements, history=(), action_statement=None):
                 "true": (
                     "The recorded actions show the requested action was performed. "
                     "For an observation-only instruction, the current page provides the evidence."
-                    if statement == action_statement
+                    if statement in action_statements
                     else "The current page visibly shows the statement is true."
                 ),
                 "false": (
                     "The requested action has no evidence in the recorded actions, or the evidence contradicts it."
-                    if statement == action_statement
+                    if statement in action_statements
                     else "The page does not show it, contradicts it, or shows an error instead."
                 ),
             },
@@ -150,7 +151,7 @@ def diagnose(page, goal, history):
     return answer.choice, answer.probabilities[answer.choice]
 
 
-def ratings(summary, rates):
+def ratings(summary, rates, issues=None):
     questions = {
         name: {
             "type": "score",
@@ -165,14 +166,19 @@ def ratings(summary, rates):
     answers, _ = ask(summary, questions)
     results = {}
     for name, rating in rates.items():
+        raw = answers.get(name)
         try:
-            answer = ScoreAnswer.model_validate(answers.get(name))
-        except ValidationError:
-            raise ValueError(f"Invalid TypeSafe score for {name}.") from None
-        if set(answer.probabilities) != {str(i) for i in range(len(rating.levels))}:
-            raise ValueError(f"Invalid TypeSafe score for {name}.")
-        weighted = sum(int(k) * p for k, p in answer.probabilities.items())
-        if abs(sum(answer.probabilities.values()) - 1) >= 0.02 or abs(answer.score - weighted) > 0.02:
-            raise ValueError(f"Invalid TypeSafe score for {name}.")
-        results[name] = answer
+            answer = ScoreAnswer.model_validate(raw)
+            if set(answer.probabilities) != {str(i) for i in range(len(rating.levels))}:
+                raise ValueError("level keys do not match the requested scale")
+            weighted = sum(int(k) * p for k, p in answer.probabilities.items())
+            if abs(sum(answer.probabilities.values()) - 1) >= 0.02:
+                raise ValueError("probabilities do not sum to one")
+            if abs(answer.score - weighted) > 0.02:
+                raise ValueError("score does not match the weighted probabilities")
+            results[name] = answer
+        except (ValidationError, ValueError) as error:
+            if issues is None:
+                raise ValueError(f"Invalid TypeSafe score for {name}.") from None
+            issues[name] = {"reason": f"Invalid TypeSafe score: {error}", "response": raw}
     return results

@@ -33,3 +33,14 @@ This file defines the words in qc-use. The code, the docs, and the reports use t
 | **inconclusive** | Jev is not sure if an expectation is true. qc-use never counts this as a pass. |
 | **blocked** | qc-use cannot continue. The report says why, for example "the page opened a new tab". |
 | **needs approval** | The next action can break a never-do rule. A person must allow it. |
+
+## Evidence and run setup
+
+- **Observation step**: a read-only step that checks the page without input.
+- **Action evidence**: recorded input checked against an explicit `action:` requirement.
+- **Document text**: rendered text across the document, including text outside the viewport, with a size limit.
+- **Verification timeout**: the polling window for rereading a step's result. In-flight checks can finish later. Input never repeats.
+- **Rating issue**: a saved reason that a rating is unavailable.
+- **Coverage**: completed steps compared with all planned steps.
+- **Manual authentication**: the user signs in inside a dedicated test profile before the automated steps start.
+- **Secret template**: an explicitly declared secret whose `{tag}` placeholder expands once for each run.

@@ -24,5 +24,6 @@ jobs:
       - run: uv run mypy
       - run: uv run pytest
       - run: node --check qc_use/engine/snapshot.js
+      - run: uv run python tools/verify_browser.py
       - run: uv build
       - run: uv run python tools/check_dist.py

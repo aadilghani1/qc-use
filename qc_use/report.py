@@ -11,7 +11,7 @@ StepOutcome = Literal["pass", "fail", "inconclusive", "blocked", "needs_approval
 TestOutcome = Literal["pass", "fail", "inconclusive", "blocked", "needs_approval"]
 EXIT_CODES = {"pass": 0, "fail": 1, "inconclusive": 2, "blocked": 2, "needs_approval": 3}
 SETUP_ERROR = 4  # Invalid test file, missing secret or key, refused URL: nothing ran.
-SCHEMA = "qc-use.report/1"
+SCHEMA = "qc-use.report/2"
 
 
 class ReportModel(BaseModel):
@@ -36,7 +36,7 @@ class ReportModel(BaseModel):
 
 
 class CheckResult(ReportModel):
-    kind: Literal["expect", "implicit", "check", "signal"]
+    kind: Literal["expect", "implicit", "action", "check", "signal"]
     text: str
     outcome: Outcome
     probability: Probability | None = None
@@ -88,6 +88,8 @@ class StepResult(ReportModel):
     elapsed_ms: int = 0
     url: str | None = None
     screenshot: str | None = None
+    screenshot_reason: str | None = None
+    evidence: dict = {}
 
 
 class RatingResult(ReportModel):
@@ -100,6 +102,9 @@ class RatingResult(ReportModel):
     confidence: Probability
     minimum: str | None = None
     outcome: Literal["pass", "fail", "info"]
+    partial: bool = False
+    completed_steps: int = 0
+    total_steps: int = 0
 
 
 class Approval(ReportModel):
@@ -116,6 +121,9 @@ class Cost(ReportModel):
     model_calls: int
     unpriced_calls: int
     cap: float = Field(gt=0)
+    requests: int = 0
+    request_cap: int = 200
+    pricing: list[dict] = []
 
 
 class Report(ReportModel):
@@ -129,6 +137,7 @@ class Report(ReportModel):
     summary: str
     steps: list[StepResult]
     ratings: list[RatingResult] = []
+    rating_issues: dict[str, dict] = {}
     approval: Approval | None = None
     cost: Cost
     models: dict[str, str]
@@ -149,7 +158,7 @@ def markdown(report):
         report.summary,
         "",
         f"`{report.test['url']}` · {report.elapsed_ms / 1000:.1f} s · "
-        f"${report.cost.usd:.4f}{' (estimated)' if report.cost.estimated else ''} · "
+        f"${report.cost.usd:.8f}{' (estimated)' if report.cost.estimated else ''} · "
         f"{report.cost.model_calls} model calls · run `{report.run_id}`",
         "",
     ]
@@ -200,6 +209,8 @@ def markdown(report):
                     f"{action.latency_ms} ms"
                 )
             lines += ["", "</details>", ""]
+        if step.screenshot_reason:
+            lines += [f"Preview withheld: {step.screenshot_reason}", ""]
         if step.screenshot:
             lines += [f"![Step {step.index}]({step.screenshot})", ""]
     if report.ratings:
@@ -210,8 +221,16 @@ def markdown(report):
             lines.append(
                 f"- **{rating.name.replace('_', ' ')}**: most likely *{rating.label}* "
                 f"(confidence {rating.confidence:.0%}; {spread}){limit}"
+                + (f" · PARTIAL: {rating.completed_steps}/{rating.total_steps} steps passed" if rating.partial else "")
+                + (" · low confidence" if rating.confidence < 0.6 else "")
             )
         lines += ["", "Ratings are Jev's judgment from the run's evidence, not measurements.", ""]
+    if report.rating_issues:
+        lines += ["", "## Unavailable ratings", ""]
+        lines += [f"- **{name}**: {issue['reason']}" for name, issue in report.rating_issues.items()]
+    if report.cost.pricing:
+        sources = ", ".join(sorted({p["source"] + ":" + p["status"] for p in report.cost.pricing}))
+        lines += ["", f"Cost evidence: {sources}. {report.cost.requests}/{report.cost.request_cap} requests."]
     lines += [
         "---",
         f"Jev `{report.models['policy']}` via {report.models['route']} · text helper `{report.models['text']}` · "

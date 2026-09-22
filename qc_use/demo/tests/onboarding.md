@@ -1,5 +1,6 @@
 ---
 url: http://localhost:3100/login
+repeat_safe: true
 secrets: [DEMO_EMAIL, DEMO_PASSWORD]
 files:
   avatar: avatar.png

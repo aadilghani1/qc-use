@@ -8,11 +8,11 @@ Copyright (c) 2026 Browser Use.
 Files adapted from jev-ultrafast, with changes:
 
   qc_use/engine/agent.py      (from jev_ultrafast/agent.py)
-  qc_use/engine/browser.py    (from jev_ultrafast/browser.py)
+  qc_use/engine/browser.py    (from jev_ultrafast/browser.py; activates the private capture tab)
   qc_use/engine/model.py      (from jev_ultrafast/model.py)
   qc_use/engine/answers.py    (validation extracted from the adapted model.py)
   qc_use/engine/questions.py  (from jev_ultrafast/questions.py)
-  qc_use/engine/snapshot.js   (from jev_ultrafast/snapshot.js)
+  qc_use/engine/snapshot.js   (from jev_ultrafast/snapshot.js; adds bounded document-text evidence)
   tests/test_engine.py        (from tests/test_agent.py)
 
 qc-use depends on browser-harness by Browser Use

@@ -74,6 +74,7 @@ Do not delete unmerged branches or rewrite unrelated history.
 
 [AGENTS.md](AGENTS.md) holds the code map, the rules, the patterns, and the checks. They apply to people and to coding agents. Its "Done means" section lists the commands to run before a pull request. CI runs the same commands.
 
+Run `uv run python tools/verify_browser.py` for local Chrome capture and document-text fixtures without model calls.
 Run `uv run mypy` to check the Python interfaces. CI checks types as well as the required checks.
 
 The tests run offline. They do not start Chrome, and they do not call any paid API.

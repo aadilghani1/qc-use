@@ -92,14 +92,21 @@
     actions.push({node:identity(e),role:'file',kind:'upload',label:name(e)||'File upload',
       value:[...e.files].map(f=>f.name).join(', '),accept:e.accept||'',multiple:e.multiple});
   }
-  const words=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+  const words=[], documentWords=[]; let documentLength=0, documentTruncated=false;
+  const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
   const range=document.createRange(); let node,length=0;
-  while ((node=walker.nextNode()) && length<6000) {
+  while ((node=walker.nextNode())) {
     const value=node.textContent.trim(), parent=node.parentElement;
     if (!value || !parent || parent.closest('script,style,noscript,template') || !visible(parent)) continue;
+    if (documentLength < 20000) {
+      documentLength+=value.length+(documentWords.length ? 1 : 0); documentWords.push(value);
+      if (documentLength>20000) documentTruncated=true;
+    } else documentTruncated=true;
     range.selectNodeContents(node); const r=range.getBoundingClientRect();
     if (r.width>0 && r.height>0 && r.bottom>0 && r.top<innerHeight && r.right>0 && r.left<innerWidth) {
-      words.push(value); length+=value.length;
+      const separator=words.length ? 1 : 0;
+      if (length<6000) words.push(value);
+      length+=value.length+separator;
     }
   }
   // Frames are not traversed. Name them so the policy and the report can say why a step is out of reach.
@@ -125,6 +132,7 @@
   if (scrollY+innerHeight<height-2) actions.push({id:'scroll_down',kind:'scroll',label:'Scroll down',delta:560});
   if (scrollY>0) actions.push({id:'scroll_up',kind:'scroll',label:'Scroll up',delta:-560});
   actions.push({id:'wait',kind:'wait',label:'Wait for the page to update'});
-  return {url:location.href,title:document.title,w:innerWidth,h:innerHeight,text,
+  return {url:location.href,title:document.title,document_text:documentWords.join("\n").slice(0,20000),
+    document_text_truncated:documentTruncated,text_truncated:length>6000,w:innerWidth,h:innerHeight,text,
     scroll:{y:scrollY,height},actions,marker,page_key,guards,omitted_actions,frames};
 })()

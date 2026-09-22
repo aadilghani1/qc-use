@@ -48,8 +48,10 @@ A new operations lead signs in for the first time and finishes onboarding.
 
 Rules for good tests:
 
+- **Observation steps:** add `- mode: observe` and explicit checks. Never grade reading as an input action.
+- **Action evidence:** add `- action: Click Save` when a specific input must be proved. Split ordered inputs into separate steps.
 - **One outcome per step.** A step says what to do; `expect:` says what the page shows when it worked. Write expectations the user would accept as proof.
-- **Counts, dates, exact values, and URLs go in `check:`** (`url contains X`, `url matches REGEX`, `title contains X`, `text contains X`, `text does not contain X`). Jev is weak at counting and date comparison.
+- **Counts, dates, exact values, and URLs go in `check:`** (`url contains X`, `url matches REGEX`, `title contains X`, `text contains X`, `text does not contain X`, `document contains X`). Jev is weak at counting and date comparison.
 - **Credentials are names, never values.** List them in `secrets:` and mention the names in steps. The user sets the values in `qa/.env` or the environment. Password fields only ever receive a declared secret.
 - **Personas are explicit fields.** Unlisted required fields get clearly fake test values, flagged in the report.
 - **Uploads use declared files**: `files: { avatar: fixtures/avatar.png }` (paths relative to the test file).
@@ -65,9 +67,16 @@ Rules for good tests:
 qc-use run qa/<flow-name>.md
 ```
 
-Add `--watch` only if the user wants to watch the live inspector. Each run uses a fresh Chrome profile, so login is really tested. Results land in `qa-results/<run-id>/`.
+Add `--watch` only if the user wants to watch the live inspector. Each run uses a fresh Chrome profile unless `--profile` reuses a dedicated profile. Results land in `qa-results/<run-id>/`.
 The live view is read-only. A missing image means masking could not be checked.
-Use `qc-use demo --headless --results /tmp/qc-use-demo` to try the bundled app.
+Use `qc-use demo --watch` for visible Chrome and its inspector. Add `--headless` only when the user wants Chrome hidden.
+Viewport text is capped at 6,000 characters. Document text is capped at 20,000 characters.
+Use `verify_timeout` for slow result transitions. In-flight checks may finish after this polling window.
+`max_model_calls` defaults to 200 HTTP attempts, including retries. Never lower pass thresholds merely to pass a test.
+`--repeat` requires `repeat_safe: true` and equivalent server-side fixtures. It does not reset accounts.
+For OTP or OAuth, use a dedicated `--profile` with `--manual-auth` in an interactive terminal.
+This handoff tests the authenticated continuation, not automated login. Never create more production accounts to work around authentication.
+Use `secret_templates` only for explicitly declared `{tag}` values such as staging mailbox aliases.
 
 ## 4. Report back
 
@@ -77,7 +86,8 @@ Read `qa-results/<run-id>/report.json`. (`qc-use schema report` prints its schem
 - Where the run stopped, and why.
 - Any signals, such as console errors or HTTP failures.
 - Generated test values.
-- Ratings, with their confidence.
+- Ratings, with their confidence, partial coverage, and any `rating_issues`.
+- Model retries, pricing source, request count, and the source hash in `models.build`.
 
 | Exit | Outcome | What you do |
 | --- | --- | --- |

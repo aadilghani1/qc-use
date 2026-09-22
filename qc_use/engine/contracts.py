@@ -25,6 +25,9 @@ class Page(TypedDict):
     url: str
     title: str
     text: str
+    document_text: NotRequired[str]
+    text_truncated: NotRequired[bool]
+    document_text_truncated: NotRequired[bool]
     actions: list[Action]
     fingerprint: str
     marker: list

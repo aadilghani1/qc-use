@@ -58,7 +58,7 @@ function render(s){
   li.querySelector('.reason').textContent=step.reason||'';
  });
  if(s.page){$('page-title').textContent=s.page.title||'Untitled page';$('page-url').textContent=s.page.url||''}
- if(s.shot!==shot){shot=s.shot;const visible=s.has_screenshot===true;$('shot').hidden=!visible;$('empty-shot').hidden=visible;if(visible)$('shot').src=`/api/screenshot?t=${encodeURIComponent(token)}&n=${shot}`;else{$('shot').removeAttribute('src');$('image-message').textContent='Preview withheld until the page can be safely masked.'}}
+ if(s.shot!==shot){shot=s.shot;const visible=s.has_screenshot===true;$('shot').hidden=!visible;$('empty-shot').hidden=visible;if(visible)$('shot').src=`/api/screenshot?t=${encodeURIComponent(token)}&n=${shot}`;else{$('shot').removeAttribute('src');$('image-message').textContent=s.screenshot_reason||'Preview withheld until the page can be safely masked.'}}
  const d=s.decision;$('decision-label').textContent=d?labels[d.operation]||d.operation:'Getting ready';
  $('decision-hint').textContent=d?`${d.latency_ms} ms · ${pct(d.confidence)} confidence`:'Reading the current page.';
  html('operations',d?bars(d.operations):'<p class="empty">Waiting for a decision.</p>');html('targets',d&&d.targets.length?bars(d.targets):'');

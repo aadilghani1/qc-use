@@ -104,10 +104,17 @@ Run `qc-use init` to create a `qa/` folder with an example. The full format is i
 
 ## Run a test
 
+For manual OTP or OAuth sign-in, use a dedicated profile in an interactive terminal:
+
+```bash
+qc-use run qa/onboarding.md --manual-auth --profile /tmp/qc-use-login --watch
+```
+
 ```bash
 qc-use run qa/onboarding.md            # run one test
 qc-use run qa/onboarding.md --watch    # also open the live view
-qc-use run qa/*.md --repeat 3          # run each test 3 times and show the pass rate
+qc-use run qa/*.md --repeat 3          # requires repeat_safe: true and repeatable test accounts
+qc-use demo --watch                            # visible Chrome and live inspector
 qc-use demo --headless --results /tmp/qc-use-demo  # keep demo reports outside your project
 ```
 
@@ -206,3 +213,15 @@ MIT license. See [LICENSE](LICENSE).
 The browser engine is adapted from [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) by [Browser Use](https://github.com/browser-use), also MIT. [NOTICE](NOTICE) lists the adapted files. qc-use uses [browser-harness](https://github.com/browser-use/browser-harness) to talk to Chrome, and [TypeSafe Jev](https://docs.typesafe.ai/introduction) through the [AI Gateway TypeSafe API](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe) to make every choice.
 
 If qc-use helps you, please star the repo. It helps other people find it.
+
+### Visible browser and evidence
+
+`--headless` hides Chrome. `--watch` opens a separate live inspector, including when Chrome is headless.
+`qc-use demo --watch` shows both. `BROWSER=true` suppresses automatic inspector opening; use the printed local URL instead.
+The design preview on port 4318 uses synthetic data. Real runs print their own local URL.
+A missing image includes a reason. Opaque regions may be hidden to protect secrets.
+
+Use `mode: observe` for read-only steps and `action:` for specific required input.
+Exact text checks use viewport text; use `document contains X` for off-screen document text.
+`verify_timeout` sets the polling window without replaying input. An in-flight browser or model check can finish after this window.
+See [test files](docs/test-files.md) for manual authentication, repeatable accounts, ratings, cost evidence, and report schema version 2.
