@@ -49,7 +49,7 @@ def looks_like_production(url):
         return not (address.is_private or address.is_loopback or address.is_link_local)
     except ValueError:
         pass
-    return not any(label in NONPRODUCTION for label in re.split(r"[.-]", host))
+    return not any(label in NONPRODUCTION for label in re.split(r"[.-]", host.rsplit(".", 1)[0]))
 
 
 class Sites:
@@ -81,7 +81,6 @@ class Guardrails(Policy):
         self.allowed = {rule for rule in self.rules if "*" in allowed or rule.casefold() in allowed}
         self.approve = approve  # Called with (rule, action label, probability) when a person can answer now.
         self.goal = ""
-        self.cache = {}
         self.gates = []  # Every gate decision, for the report.
 
     def active(self):
@@ -100,12 +99,9 @@ class Guardrails(Policy):
         if action.get("href") and not self.sites.allows(action["href"]):
             raise Blocked(f"The link '{action['label']}' leads outside the allowed sites ({action['href']})")
         rules = self.active()
-        if action["kind"] not in {"click", "select"} or not rules:
-            return  # Typing never presses Enter, and scrolling or waiting cannot commit anything.
-        key = (tuple(rules), urlparse(page["url"]).path, action["label"], action.get("role"), action.get("value"))
-        if key not in self.cache:
-            self.cache[key] = judge.gate(page, self.goal, action, rules)
-        probabilities = self.cache[key]
+        if action["kind"] not in {"click", "select", "fill", "upload"} or not rules:
+            return  # Scrolling and waiting have no chosen mutation target.
+        probabilities = judge.gate(page, self.goal, action, rules)
         self.gates.append({"action": action["label"], "url": page["url"], "probabilities": probabilities})
         self.decide(probabilities, action["label"])
 

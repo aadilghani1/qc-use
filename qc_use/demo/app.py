@@ -15,7 +15,7 @@ EMAIL, PASSWORD = "demo@qc-use.test", "correct-horse-battery"
 ROLES = ["Founder", "Head of Operations", "Engineer", "Other"]
 TEAM_SIZES = ["1-10", "11-50", "51-200", "200+"]
 USE_CASES = ["Track shipments", "Manage vendors", "Forecast demand"]
-SESSIONS = {}
+SESSIONS: dict[str, dict] = {}
 
 STYLE = """
 *{box-sizing:border-box} body{margin:0; font:15px/1.5 system-ui,-apple-system,sans-serif; background:#f4f6f5;
@@ -144,7 +144,7 @@ class Handler(BaseHTTPRequestHandler):
     def session(self):
         cookie = SimpleCookie(self.headers.get("Cookie", ""))
         token = cookie["beacon"].value if "beacon" in cookie else None
-        return SESSIONS.get(token)
+        return SESSIONS.get(token) if token else None
 
     def send(self, status, body="", kind="text/html; charset=utf-8", headers=()):
         data = body.encode()

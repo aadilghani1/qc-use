@@ -15,9 +15,11 @@ This file defines the words in qc-use. The code, the docs, and the reports use t
 | **Secret** | A private value, such as a password. A test file contains the secret's name only. qc-use types the value. No model sees it. |
 | **Persona** | The user that qc-use acts as. It is a list of facts, such as a role or a team size. |
 | **Never-do rule** | Something qc-use must not do without a person's approval, such as "delete stored data". |
-| **Gate** | The question that qc-use asks Jev before each click: "Can this click break a never-do rule?" |
+| **Gate** | The question that qc-use asks Jev before each chosen input action: "Can this action break a never-do rule?" |
 | **Signal** | A problem that the browser reports: a console error, a JavaScript exception, or a failed request. |
 | **Rating** | Jev's score for the whole run on levels that you choose, for example from "confusing" to "effortless". |
+| **Live view** | The read-only local page that shows a run, its actions, and masked images. |
+| **Provider** | The service that receives a model request and returns an answer. |
 | **Run** | One time that qc-use runs a test file. Each run uses a new, empty Chrome profile. |
 | **Report** | The result of a run: `report.md` for people and `report.json` for programs. |
 | **Outcome** | The result of a step or a run: pass, fail, inconclusive, blocked, or needs approval. |

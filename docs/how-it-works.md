@@ -22,10 +22,10 @@ Each decision is one request to Jev.
 2. **Ask Jev.** The request has several questions. All of them see the same page:
    - `operation`: which action is next? `CLICK`, `TYPE_TEXT`, `SELECT`, `UPLOAD`, `SCROLL_DOWN`, `SCROLL_UP`, `WAIT`, `DONE`, or `BLOCKED`.
    - `click_target`, `type_text_target`, and the others: if that action is next, which element?
-   - `step_done`: is the step's expectation already true?
+   - `step_done`: does the current step and its checks appear complete? The QA layer independently checks the step before another input can leave its checkpoint.
 3. **Use only the matching answer.** If Jev chooses `CLICK`, only `click_target` counts. The other target answers do nothing. This is called speculative fan-out: qc-use asks every question at once, so one round trip is enough.
 4. **Check the answer.** Every answer must be a valid choice from the list, with valid probabilities. If not, nothing happens.
-5. **Run the gate.** Before a click or a dropdown choice, the gate checks the never-do rules (`guards.py`).
+5. **Run the gate.** Before a click, fill, dropdown choice, or upload, the gate checks the never-do rules (`guards.py`).
 6. **Do the action.** Code finds the element again, checks that it is still visible and not covered, and then clicks or types. For a text field, the text helper writes the value. For a secret, code types the value.
 7. **Record, then read again.** qc-use records the action before it reads the page again. A page change during the read cannot hide the action.
 
@@ -45,9 +45,13 @@ A browser dialog, such as `confirm()`, freezes the page. qc-use sends each input
 
 ## Checks after a step
 
-When a step is done, qc-use reads the page again. It asks Jev one yes-or-no question for each `expect:` line. Code checks each `check:` line. See [test-files.md](test-files.md#expectations).
+When a step is done, qc-use reads the page again and checks allowed sites and new tabs.
+Jev checks the step against its recorded actions, then checks each `expect:` line against the fresh page.
+Code checks each `check:` line. See [test-files.md](test-files.md#expectations).
 
-Jev's "done" and the checks are separate questions. The checks see a fresh page. This is why a wrong "done" cannot make a step pass.
+Jev's "done" and the checks are separate questions. The checks see a fresh page. After input, independent checks of recorded actions and current expectations can stop the step before another action.
+An expectation that holds before input cannot trigger this shortcut. The question includes the entire step and its checks.
+Checks remain model judgments where exact checks are not available.
 
 ## What changed from jev-ultrafast
 

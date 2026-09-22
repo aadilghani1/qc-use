@@ -59,9 +59,9 @@ You see one result of each kind:
 - **Plain words, not code.** You write no selectors and no scripts. When the UI changes, you usually do not need to change the test.
 - **Jev chooses. It does not write.** On each page, qc-use makes a list of the elements. Jev chooses the next action and one element from that list. Jev cannot invent a selector or run code.
 - **Proof, not claims.** After each step, qc-use reads the page again and checks your expectation. A "done" from the model is not enough.
-- **Secrets stay on your machine.** A test file contains secret names only. Code types the values. Reports and screenshots hide them.
-- **Safe by default.** qc-use visits only the sites that you allow. It refuses production URLs. It stops before it deletes data, pays, or sends messages to real people.
-- **Fast and cheap.** The 4-step demo onboarding test takes about 15 seconds. It costs about $0.0002 or less through Vercel AI Gateway.
+- **Secrets stay on your machine.** A test file contains secret names only. Code types the values. Reports hide them. Screenshots are masked or omitted when masking cannot be checked.
+- **Safe by default.** qc-use checks links and page addresses against your allowed sites. Its gate checks chosen actions for destructive changes, payments, and messages.
+- **Measured runs.** Each report includes elapsed time, model calls, and reported or estimated cost. Unknown pricing stops further model requests.
 
 ## Write a test
 
@@ -108,6 +108,7 @@ Run `qc-use init` to create a `qa/` folder with an example. The full format is i
 qc-use run qa/onboarding.md            # run one test
 qc-use run qa/onboarding.md --watch    # also open the live view
 qc-use run qa/*.md --repeat 3          # run each test 3 times and show the pass rate
+qc-use demo --headless --results /tmp/qc-use-demo  # keep demo reports outside your project
 ```
 
 Each run writes a folder in `qa-results/`:
@@ -147,11 +148,11 @@ qc-use is built on [jev-ultrafast](https://github.com/browser-use/jev-ultrafast)
 
 ## Safety
 
-- **Secrets:** no model sees a secret value. Password fields accept secrets only. qc-use hides secret values in reports, traces, and screenshots.
-- **Allowed sites:** qc-use stays on the start site and the sites in `allow:`. A link to another site stops the step.
+- **Secrets:** no model sees a secret value. Password fields accept secrets only. qc-use hides declared values in model input, reports, traces, live output, and supported screenshots. It omits images when masking cannot be checked.
+- **Allowed sites:** qc-use checks links before clicking and checks page addresses after reads, including verification. Background requests are not filtered.
 - **No production by accident:** qc-use refuses URLs that look like production, unless you set `allow_production: true`.
-- **Never-do rules:** before each click, the gate asks Jev if the click can break a rule. The default rules forbid deleting data, making a payment, and sending a message to a real person. You can add your own rules. If a rule can break, qc-use stops and asks a person.
-- **Limits:** each step has an action limit, each run has a cost limit, and qc-use never repeats an action to hide a failure.
+- **Never-do rules:** before each click, fill, dropdown choice, or upload, the gate asks Jev if the action can break a rule. The default rules forbid deleting data, making a payment, and sending a message to a real person. You can add your own rules. If a rule can break, qc-use stops and asks a person.
+- **Limits:** each step has an action limit, each run has a cost limit, and qc-use does not retry uncertain input to hide a failure. Unknown pricing stops further model calls.
 
 The gate is a seatbelt, not a sandbox. Use test accounts and test data. Details are in [docs/safety.md](docs/safety.md).
 
@@ -190,7 +191,7 @@ Put these values in `qa/.env` (qc-use keeps it out of git) or in your environmen
 
 ## Contribute
 
-We welcome issues and pull requests. Read [CONTRIBUTING.md](CONTRIBUTING.md) to start. The tests run offline in less than one second, and they do not call any paid API.
+We welcome issues and pull requests. Read [CONTRIBUTING.md](CONTRIBUTING.md) to start. The tests run offline and do not call any paid API.
 
 Good first contributions:
 

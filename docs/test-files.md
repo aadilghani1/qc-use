@@ -58,7 +58,7 @@ Only `url` is required.
 | `fail_on` | `[]` | Signals that make a step fail: `console_error`, `js_exception`, `http_4xx`, `http_5xx`, `request_failed`. |
 | `budget` | `{step: 15, test: 60}` | The maximum number of actions for each step and for the whole test. |
 | `bands` | `{pass_at: 0.8, fail_at: 0.2}` | How Jev probabilities become outcomes. See [Expectations](#expectations). |
-| `max_cost` | `0.25` | The maximum model cost of one run, in US dollars. |
+| `max_cost` | `0.25` | The reported-spend limit before another model request. Unknown pricing stops further calls. |
 
 ## Steps
 
@@ -89,7 +89,9 @@ After the step, qc-use reads the page again. Jev answers a yes-or-no question fo
 
 If an expectation does not pass, qc-use waits 1 second, reads the page again, and asks one more time. This helps with pages that finish loading late. qc-use never counts "inconclusive" as a pass.
 
-If a step has no `expect:` line, qc-use checks the step text itself. The report calls this an `implicit` check.
+qc-use also checks the step text against the recorded actions. An already-visible destination does not prove that a requested action occurred.
+If a step has no `expect:` line, the report calls its check an `implicit` check.
+Observation-only steps can pass without input.
 
 ## Exact checks
 
@@ -170,6 +172,7 @@ rate:
 ```
 
 Now the test fails if the most likely level is below `okay`.
+If this required rating cannot be checked, an otherwise passing run becomes inconclusive. Optional ratings may be unavailable without changing the outcome.
 
 ## Tips
 

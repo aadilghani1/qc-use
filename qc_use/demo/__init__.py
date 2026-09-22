@@ -13,7 +13,11 @@ TESTS = Path(__file__).with_name("tests")
 EXPECTED = {"onboarding.md": 0, "invite.md": 1, "cleanup.md": 3}
 
 
-def main(port=3100, serve_only=False, headless=False):
+def main(port=3100, serve_only=False, headless=False, results="qa-results"):
+    from ..secrets import load_env
+
+    load_env(Path.cwd() / "qa")
+    load_env(Path.cwd())
     server = serve(port)
     url = f"http://localhost:{port}/login"
     print(f"Beacon demo app: {url}  (sign in as {EMAIL} / {PASSWORD})")
@@ -31,7 +35,10 @@ def main(port=3100, serve_only=False, headless=False):
         if port != 3100:
             print("The bundled tests use port 3100. Use `qc-use demo --serve --port N` for other ports.")
             return SETUP_ERROR
-        codes = {name: cli(["run", str(TESTS / name), *(["--headless"] if headless else [])]) for name in EXPECTED}
+        codes = {
+            name: cli(["run", str(TESTS / name), "--results", str(results), *(["--headless"] if headless else [])])
+            for name in EXPECTED
+        }
         if codes == EXPECTED:
             print("qc-use works. You saw a pass, a real bug that qc-use caught, and a risky action that stopped.")
             return 0

@@ -6,7 +6,7 @@ homepage: https://github.com/aadilghani1/qc-use
 
 # qc-use
 
-qc-use runs a plain-language critical path against a web app and reports a verdict for each step. Jev (TypeSafe) chooses every action from the elements actually on the page; it never writes selectors or code. Each step is then checked on a fresh page read, so "done" is evidence, not a claim.
+qc-use runs a plain-language critical path against a web app and reports a verdict for each step. Jev (TypeSafe) chooses every action from the elements actually on the page; it never writes selectors or code. Each step is checked against recorded actions and a fresh page. A model decision to stop does not prove success.
 
 You write the test file, confirm it with the user, run it, and explain the result. You do not drive the browser yourself.
 
@@ -66,6 +66,8 @@ qc-use run qa/<flow-name>.md
 ```
 
 Add `--watch` only if the user wants to watch the live inspector. Each run uses a fresh Chrome profile, so login is really tested. Results land in `qa-results/<run-id>/`.
+The live view is read-only. A missing image means masking could not be checked.
+Use `qc-use demo --headless --results /tmp/qc-use-demo` to try the bundled app.
 
 ## 4. Report back
 

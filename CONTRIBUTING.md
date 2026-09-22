@@ -19,6 +19,8 @@ The hooks run on each commit. They fix lint and formatting with ruff, check whit
 
 [AGENTS.md](AGENTS.md) holds the code map, the rules, the patterns, and the checks. They apply to people and to coding agents. Its "Done means" section lists the commands to run before a pull request. CI runs the same commands.
 
+Run `uv run mypy` to check the Python interfaces. CI checks types as well as the required checks.
+
 The tests run offline. They do not start Chrome, and they do not call any paid API.
 
 To test with a real browser and real models, put `AI_GATEWAY_API_KEY` in `.env` and run:
@@ -82,3 +84,20 @@ Make each commit atomic: one logical change, and all checks pass at that commit.
 - Add example test files to `examples/` for common flows, such as sign up or checkout.
 - Make error messages clearer.
 - Add a GitHub Actions example that runs qc-use against a preview deployment.
+
+## Tune the live view
+
+The shipped live view is one HTML file with no build step or remote assets.
+Use the optional DialKit preview to adjust motion, radius, and color against synthetic data:
+
+```bash
+npm ci --prefix tools/preview
+python3 tools/preview/serve.py
+```
+
+Open `http://127.0.0.1:4318`. Expand the DialKit panel, adjust the controls, and copy the chosen values into `qc_use/watch.html`.
+Replay restarts the synthetic run. No model or test account is used.
+DialKit is a development tool. It is excluded from the Python wheel.
+
+The interface uses short CSS transitions and honors reduced motion. Evidence disclosures keep their state during live updates.
+Design references: [Emil Kowalski](https://animations.dev/), [Shawn](https://www.shwn.design/), and [DialKit](https://www.dialkit.dev/agent).

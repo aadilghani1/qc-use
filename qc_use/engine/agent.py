@@ -1,12 +1,13 @@
 """Run one goal on an existing page. Typed choices, observable state, bounded execution."""
 
 import time
+from collections.abc import Callable
 
+from .contracts import BrowserPort, Page
 from .errors import Blocked, NeedsApproval, StalePage
 from .model import choose, field_context, field_text
 
 __all__ = ["Agent", "Blocked", "NeedsApproval", "Policy", "StalePage"]
-DONE_AT = 0.9  # A step whose done-when is this likely already true stops, then gets checked independently.
 
 
 class Policy:
@@ -22,7 +23,7 @@ class Policy:
 class Agent:
     def __init__(
         self,
-        browser,
+        browser: BrowserPort,
         goal,
         *,
         page,
@@ -33,15 +34,17 @@ class Agent:
         policy=None,
         screenshots=False,
         done_when=(),
+        completion_check: Callable[[Page], bool] | None = None,
     ):
         self.browser = browser
         self.done_when = tuple(done_when)
+        self.completion_check = completion_check
         self.secrets = secrets or {}  # name -> value. Values are typed by code and never sent to a model.
         self.files = files or {}  # name -> path of a declared fixture.
         self.policy = policy or Policy()
         self.screenshots = screenshots
         self.max_actions = max_actions
-        self.pending_text = None
+        self.pending_text: tuple | None = None
         self.state = {
             "goal": goal,
             "page": page,
@@ -102,8 +105,16 @@ class Agent:
         # Consume once, before any mutation or model call. A retry cannot double-click.
         state["decision"] = None
         selected = decision["choice"]
-        if (decision.get("done_probability") or 0) >= DONE_AT and selected != "BLOCKED":
-            selected = "DONE"  # Do not overshoot into the next step once this one visibly holds.
+        if (
+            selected not in {"DONE", "BLOCKED"}
+            and len(state["history"]) > state["first_action"]
+            and (
+                self.completion_check(page)
+                if self.completion_check is not None
+                else (decision.get("done_probability") or 0) >= 0.9
+            )
+        ):
+            selected = "DONE"  # Stop before another action can leave the verified checkpoint.
         if selected in {"DONE", "BLOCKED"}:
             if not self.browser.fresh(page):
                 state["status"] = "ready"

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="780" viewBox="0 0 1120 780">
+<rect width="1120" height="780" fill="#f7f8f6"/><rect width="1120" height="66" fill="white"/>
+<g font-family="Arial,sans-serif" fill="#29332d"><circle cx="35" cy="33" r="6" fill="#287852"/><text x="52" y="39" font-size="18" font-weight="600">Beacon</text><rect x="914" y="25" width="170" height="15" rx="4" fill="#d5ddd6"/>
+<rect x="290" y="170" width="540" height="418" rx="12" fill="white" stroke="#e3e7e1"/>
+<circle cx="344" cy="222" r="19" fill="#eaf4ed"/><text x="335" y="229" font-size="21" fill="#287852">✓</text>
+<text x="325" y="283" font-size="25" font-weight="600">Welcome, Priya.</text><text x="325" y="317" font-size="14" fill="#788078">Your workspace is ready.</text>
+<path d="M325 344H795" stroke="#e7eae5"/><text x="325" y="380" font-size="13" fill="#788078">WORKSPACE</text><text x="325" y="408" font-size="19">Northwind Freight</text>
+<text x="325" y="451" font-size="14" fill="#287852">✓  Profile complete</text><text x="325" y="481" font-size="14" fill="#287852">✓  Shipment tracking enabled</text>
+<rect x="325" y="516" width="154" height="39" rx="6" fill="#287852"/><text x="346" y="541" font-size="13" fill="white">Open workspace →</text></g></svg>

@@ -1,8 +1,10 @@
 """The run's answer: report.json for agents and CI, report.md for people. Every number comes from the trace."""
 
-from typing import Literal
+from typing import Literal, get_origin
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+
+from .engine.answers import Probability
 
 Outcome = Literal["pass", "fail", "inconclusive"]
 StepOutcome = Literal["pass", "fail", "inconclusive", "blocked", "needs_approval", "skipped"]
@@ -12,20 +14,41 @@ SETUP_ERROR = 4  # Invalid test file, missing secret or key, refused URL: nothin
 SCHEMA = "qc-use.report/1"
 
 
-class CheckResult(BaseModel):
+class ReportModel(BaseModel):
+    """Reject non-finite numbers in report data."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
+
+    def redacted(self, redact):
+        """Mask data without rewriting code-owned field names or outcome literals."""
+
+        def value(item):
+            if isinstance(item, ReportModel):
+                return {
+                    name: getattr(item, name) if get_origin(field.annotation) is Literal else value(getattr(item, name))
+                    for name, field in type(item).model_fields.items()
+                }
+            if isinstance(item, list):
+                return [value(part) for part in item]
+            return redact(item)
+
+        return type(self).model_validate(value(self))
+
+
+class CheckResult(ReportModel):
     kind: Literal["expect", "implicit", "check", "signal"]
     text: str
     outcome: Outcome
-    probability: float | None = None
+    probability: Probability | None = None
 
 
-class ActionRecord(BaseModel):
+class ActionRecord(ReportModel):
     action: str
     kind: str
     operation: str
     target: str | None
-    probability: float
-    confidence: float
+    probability: Probability
+    confidence: Probability
     latency_ms: int
     text: str | None = None
     text_source: str | None = None
@@ -34,24 +57,24 @@ class ActionRecord(BaseModel):
     elapsed_ms: int
 
 
-class Signal(BaseModel):
+class Signal(ReportModel):
     kind: str
     text: str
 
 
-class Dialog(BaseModel):
+class Dialog(ReportModel):
     type: str
     message: str
     accepted: bool
 
 
-class GeneratedValue(BaseModel):
+class GeneratedValue(ReportModel):
     field: str
     value: str
     source: str
 
 
-class StepResult(BaseModel):
+class StepResult(ReportModel):
     index: int
     text: str
     outcome: StepOutcome
@@ -67,35 +90,35 @@ class StepResult(BaseModel):
     screenshot: str | None = None
 
 
-class RatingResult(BaseModel):
+class RatingResult(ReportModel):
     name: str
     levels: list[str]
     level: int
     label: str
     score: float
-    probabilities: dict[str, float]
-    confidence: float
+    probabilities: dict[str, Probability]
+    confidence: Probability
     minimum: str | None = None
     outcome: Literal["pass", "fail", "info"]
 
 
-class Approval(BaseModel):
+class Approval(ReportModel):
     step: int
     rule: str
     action: str
-    probability: float
+    probability: Probability
     rerun_with: str
 
 
-class Cost(BaseModel):
-    usd: float
+class Cost(ReportModel):
+    usd: float = Field(ge=0)
     estimated: bool
     model_calls: int
     unpriced_calls: int
-    cap: float
+    cap: float = Field(gt=0)
 
 
-class Report(BaseModel):
+class Report(ReportModel):
     schema_version: str = SCHEMA
     run_id: str
     test: dict[str, str]

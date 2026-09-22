@@ -10,6 +10,7 @@ from pathlib import Path
 from browser_harness.admin import ensure_daemon
 from browser_harness.helpers import _send, cdp, drain_events
 
+from .contracts import Action, Page
 from .errors import StalePage
 
 # Atomically read visible content and controls, preserving actual DOM node identity.
@@ -25,6 +26,7 @@ def accept_alerts(dialog):
 class Browser:
     def __init__(self, url, on_dialog=accept_alerts):
         ensure_daemon()
+        self.after_input: Action | None = None
         self.on_dialog = on_dialog
         self.dialogs = []
         self.target = cdp("Target.createTarget", url="about:blank", background=True)["targetId"]
@@ -101,7 +103,7 @@ class Browser:
             raise error
         return outcome["result"]
 
-    def signals(self):
+    def signals(self) -> list[dict]:
         """Console errors, uncaught exceptions and failed HTTP requests for this tab since the last call."""
         found = []
         for event in drain_events():
@@ -132,7 +134,7 @@ class Browser:
                 found.append({"kind": "request_failed", "text": params.get("errorText", "")[:300]})
         return found
 
-    def new_tabs(self):
+    def new_tabs(self) -> list[str]:
         """Tabs or windows this page opened. They are outside the controlled page."""
         opened = [
             t
@@ -142,7 +144,7 @@ class Browser:
         self.popups.update(t["targetId"] for t in opened)
         return [t["url"] for t in opened]
 
-    def observe(self, screenshot=True):
+    def observe(self, screenshot: bool = True) -> Page:
         self.settle_dialog()
         if getattr(self, "after_input", None):
             action, self.after_input = self.after_input, None
@@ -191,7 +193,7 @@ class Browser:
                     raise
         raise StalePage("Page did not settle")
 
-    def fresh(self, page, action=None):
+    def fresh(self, page: Page, action: Action | None = None) -> bool:
         if action is not None and action["kind"] in {"click", "select", "upload"}:
             node = action["node"]
             if type(node) is not int:
@@ -203,7 +205,7 @@ class Browser:
             return current == [page["page_key"], page["guards"].get(str(node))]
         return self.evaluate(MARKER) == page["marker"]
 
-    def act(self, action, page, text=None):
+    def act(self, action: Action, page: Page, text: str | None = None) -> object:
         if not self.fresh(page, action):
             raise StalePage("Page changed since this decision. Observe again.")
         if action["kind"] == "wait":

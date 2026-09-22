@@ -1,11 +1,13 @@
 """A dedicated Chrome with its own profile. Tests never touch the user's everyday browser."""
 
+import contextlib
 import json
 import os
 import platform
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -64,23 +66,27 @@ class Chrome:
             *(["--headless=new"] if headless else []),
             "about:blank",
         ]
-        self.process = subprocess.Popen(
-            args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True
-        )
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            if self.process.poll() is not None:
-                raise RuntimeError(f"Chrome exited during startup (code {self.process.returncode}).")
-            lines = port_file.read_text().splitlines() if port_file.exists() else []
-            if lines and lines[0].strip().isdigit():
-                self.url = f"http://127.0.0.1:{lines[0].strip()}"
-                return
-            time.sleep(0.05)
-        self.close()
-        raise RuntimeError("Chrome did not open its DevTools port within 20 seconds.")
+        self.process = None
+        try:
+            self.process = subprocess.Popen(
+                args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True
+            )
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                if self.process.poll() is not None:
+                    raise RuntimeError(f"Chrome exited during startup (code {self.process.returncode}).")
+                lines = port_file.read_text().splitlines() if port_file.exists() else []
+                if lines and lines[0].strip().isdigit():
+                    self.url = f"http://127.0.0.1:{lines[0].strip()}"
+                    return
+                time.sleep(0.05)
+            raise RuntimeError("Chrome did not open its DevTools port within 20 seconds.")
+        except BaseException:
+            self.close()
+            raise
 
     def close(self):
-        if self.process.poll() is None:
+        if self.process is not None and self.process.poll() is None:
             self.process.terminate()
             try:
                 self.process.wait(5)
@@ -95,3 +101,38 @@ class Chrome:
 
     def __exit__(self, *_args):
         self.close()
+
+
+# browser-harness binds one daemon name at import time.
+DAEMON = f"qc-use-{os.getpid()}"
+
+
+def connect(chrome):
+    """Point the process-owned browser daemon at this run's Chrome."""
+    os.environ["BU_NAME"] = DAEMON
+    os.environ["BU_CDP_URL"] = chrome.url
+    from browser_harness.admin import daemon_alive, restart_daemon
+
+    if daemon_alive(DAEMON):
+        restart_daemon(DAEMON)  # A daemon from an earlier run in this process points at a closed Chrome.
+
+
+def reap(pid):
+    """Collect an exited daemon so the harness does not wait on a zombie."""
+    with contextlib.suppress(ChildProcessError, OSError):
+        os.waitpid(pid, 0)
+
+
+def disconnect(browser):
+    """Close the browser and stop this process's daemon."""
+    from browser_harness import _ipc
+    from browser_harness.admin import restart_daemon
+
+    try:
+        if browser:
+            browser.close()
+    finally:
+        # The daemon is our child. Reap it as it exits, or the harness waits 15 s on the zombie.
+        if pid := _ipc.identify(DAEMON, timeout=2.0):
+            threading.Thread(target=reap, args=(pid,), daemon=True).start()
+        restart_daemon(DAEMON)

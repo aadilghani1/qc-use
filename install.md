@@ -67,7 +67,7 @@ qc-use doctor qa/onboarding.md
 ## 5. Try the demo
 
 ```bash
-qc-use demo
+qc-use demo --headless --results /tmp/qc-use-demo
 ```
 
 The demo starts a small app on port 3100 and runs 3 tests. You see a pass, a fail, and a stop for approval. `qc-use demo` exits with code 0 when all 3 outcomes are as expected.
@@ -95,7 +95,10 @@ TEXT_MODEL_API_KEY=your-text-model-key
 TEXT_MODEL_BASE_URL=https://openrouter.ai/api/v1
 ```
 
-`TEXT_MODEL_BASE_URL` can be any OpenAI-compatible endpoint.
+`TEXT_MODEL_BASE_URL` uses the OpenAI chat-completions format. The chosen model must support JSON output.
+Generic providers receive no reasoning settings by default. Set `TEXT_MODEL_REASONING` only when your provider supports it.
+If a provider does not report cost, qc-use stops before another model request.
+The gateway key is used only for the exact HTTPS gateway host.
 
 ## Uninstall
 

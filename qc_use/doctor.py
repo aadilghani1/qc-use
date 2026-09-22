@@ -9,6 +9,7 @@ import httpx
 from .chrome import Chrome, find_chrome
 from .engine import model
 from .guards import looks_like_production
+from .report import SETUP_ERROR
 from .secrets import MIN_MASKED, load_env
 
 
@@ -78,7 +79,7 @@ def doctor(file=None):
             if not value:
                 report(False, f"Secret {name} is not set", "Add it to qa/.env or the environment.")
             elif len(value) < MIN_MASKED:
-                report(None, f"Secret {name} is shorter than {MIN_MASKED} characters and will not be masked")
+                report(False, f"Secret {name} is shorter than {MIN_MASKED} characters; qc-use will refuse the run")
             else:
                 report(True, f"Secret {name} is set")
         try:
@@ -87,4 +88,4 @@ def doctor(file=None):
         except httpx.HTTPError:
             report(False, f"Nothing answers at {spec.url}", "Start the app, then run qc-use again.")
     print("Ready." if not problems else f"{problems} problem{'s' if problems > 1 else ''} to fix.")
-    return 0 if not problems else 4
+    return 0 if not problems else SETUP_ERROR

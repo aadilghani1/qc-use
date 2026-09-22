@@ -139,7 +139,7 @@ def test_links_outside_allowed_sites_are_blocked_before_clicking(tmp_path):
         guard.after_observe({"url": "chrome-error://chromewebdata/"})
 
 
-def test_never_gate_asks_before_clicks_and_caches(tmp_path, monkeypatch):
+def test_never_gate_checks_every_mutating_action(tmp_path, monkeypatch):
     gate = Mock(return_value=dict.fromkeys(guards.DEFAULT_NEVER, 0.05) | {"cancel the plan": 0.9})
     monkeypatch.setattr(judge, "gate", gate)
     guard = guards.Guardrails(spec_for(tmp_path, "url: http://localhost:3000\nnever: [cancel the plan]"))
@@ -150,9 +150,10 @@ def test_never_gate_asks_before_clicks_and_caches(tmp_path, monkeypatch):
     assert stop.value.rule == "cancel the plan"
     with pytest.raises(NeedsApproval):
         guard.before_act(button, page, {})
-    assert gate.call_count == 1
-    guard.before_act({"label": "Name", "kind": "fill", "role": "textbox"}, page, {})  # Typing never commits.
-    assert gate.call_count == 1
+    assert gate.call_count == 2
+    with pytest.raises(NeedsApproval):
+        guard.before_act({"label": "Name", "kind": "fill", "role": "textbox"}, page, {})
+    assert gate.call_count == 3
 
 
 def test_allowed_or_approved_rules_let_the_action_run(tmp_path, monkeypatch):
@@ -182,8 +183,8 @@ def test_redactor_masks_nested_values_longest_first():
     assert masked == {
         "text": "Signed in as [secret:EMAIL] ([secret:USER])",
         "list": ["[secret:USER]", 123],
-        "PIN 123": "123",
-    }  # Values under four characters are left alone.
+        "PIN 123": "[secret:PIN]",
+    }
 
 
 def test_secrets_resolve_from_environment_and_env_file(tmp_path, monkeypatch):
@@ -272,11 +273,11 @@ def test_bundled_demo_tests_and_examples_are_valid():
 def test_a_step_passes_only_on_fresh_evidence(tmp_path, monkeypatch):
     spec = load(write(tmp_path, EXAMPLE))
     fresh = {"url": "http://localhost:3000/home", "title": "Home", "text": "Dashboard", "actions": []}
-    browser = Mock(observe=Mock(return_value=fresh))
-    monkeypatch.setattr(judge, "expectations", Mock(return_value=[0.1]))
+    browser = Mock(observe=Mock(return_value=fresh), new_tabs=Mock(return_value=[]))
+    monkeypatch.setattr(judge, "expectations", Mock(return_value=[0.1, 0.1]))
     monkeypatch.setattr(runner, "SETTLE_SECONDS", 0)
     checks, _ = runner.verify(spec, spec.steps[0], browser, "goal")
-    assert [(c.kind, c.outcome) for c in checks] == [("expect", "fail"), ("check", "pass")]
+    assert [(c.kind, c.outcome) for c in checks] == [("expect", "fail"), ("expect", "fail"), ("check", "pass")]
     assert browser.observe.call_count == 2  # One read-only re-check, then the answer stands.
 
 
@@ -284,7 +285,10 @@ def test_screenshots_black_out_secret_values_or_are_not_saved():
     buffer = io.BytesIO()
     Image.new("RGB", (100, 60), "white").save(buffer, "JPEG")
     data = base64.b64encode(buffer.getvalue()).decode()
-    browser = Mock(evaluate=Mock(return_value=[[10, 10, 30, 20]]))
+    browser = Mock(
+        evaluate=Mock(return_value={"rects": [[10, 10, 30, 20]], "state": "stable"}),
+        call=Mock(return_value={"data": data}),
+    )
     image = Image.open(io.BytesIO(runner.masked(browser, data, {"PASSWORD": "hunter22"})))
     assert "hunter22" in browser.evaluate.call_args.args[0]
     assert image.getpixel((25, 20))[0] < 60 and image.getpixel((90, 50))[0] > 200

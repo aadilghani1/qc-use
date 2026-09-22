@@ -25,7 +25,13 @@ def unquote(value):
     return value[1:-1] if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'`" else value
 
 
-class Check(BaseModel):
+class SettingsModel(BaseModel):
+    """Reject unknown settings at every nesting level."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+
+class Check(SettingsModel):
     """A deterministic check on the page after a step. Counts and dates belong here, not in `expect:`."""
 
     subject: Literal["url", "title", "text"]
@@ -64,13 +70,13 @@ class Check(BaseModel):
         return found if self.verb == "contains" else not found
 
 
-class Step(BaseModel):
+class Step(SettingsModel):
     text: str = Field(min_length=1)
     expect: list[str] = []
     check: list[Check] = []
 
 
-class Rating(BaseModel):
+class Rating(SettingsModel):
     """A Jev score over the finished run. Levels go from worst to best."""
 
     levels: list[str] = Field(min_length=2, max_length=10)
@@ -83,12 +89,12 @@ class Rating(BaseModel):
         return self
 
 
-class Budget(BaseModel):
+class Budget(SettingsModel):
     step: int = Field(15, ge=1, le=60)
     test: int = Field(60, ge=1, le=300)
 
 
-class Bands(BaseModel):
+class Bands(SettingsModel):
     """Jev yes/no answers are probabilities. Between the bands a check is inconclusive, never a pass."""
 
     pass_at: float = Field(0.8, gt=0, le=1)
@@ -101,7 +107,7 @@ class Bands(BaseModel):
         return self
 
 
-class TestSpec(BaseModel):
+class TestSpec(SettingsModel):
     __test__ = False  # Not a pytest class.
     model_config = ConfigDict(extra="forbid")
 
@@ -121,15 +127,16 @@ class TestSpec(BaseModel):
     fail_on: list[Signal] = []
     budget: Budget = Budget()
     bands: Bands = Bands()
-    max_cost: float = Field(0.25, gt=0)
+    max_cost: float = Field(0.25, gt=0, allow_inf_nan=False)
     steps: list[Step] = Field(min_length=1)
 
     @field_validator("url")
     @classmethod
     def web_url(cls, value):
         parsed = urlparse(value)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
             raise ValueError("must be an http(s) URL such as http://localhost:3000")
+        _ = parsed.port
         return value
 
     @field_validator("secrets")
@@ -143,12 +150,15 @@ class TestSpec(BaseModel):
     @field_validator("rate", mode="before")
     @classmethod
     def level_lists(cls, rate):
-        return {name: {"levels": r} if isinstance(r, list) else r for name, r in (rate or {}).items()}
+        if not isinstance(rate, dict):
+            raise ValueError("rate must be a mapping of names to levels")
+        return {name: {"levels": r} if isinstance(r, list) else r for name, r in rate.items()}
 
 
 def parse_body(body):
     """Split markdown into a title, an intent paragraph, and numbered steps with expect/check details."""
-    title, intent, steps = None, [], []
+    title, intent = None, []
+    steps: list[dict] = []
     for line in body.splitlines():
         if not line.strip():
             continue
@@ -178,8 +188,17 @@ def load(path):
         raise SpecError(f"{path}: invalid front matter: {error}") from None
     if not isinstance(settings, dict):
         raise SpecError(f"{path}: front matter must be key: value settings.")
-    title, intent, steps = parse_body(match[2])
-    files = {name: (path.parent / file).resolve() for name, file in (settings.pop("files", None) or {}).items()}
+    reserved = set(settings) & {"path", "intent", "steps"}
+    if reserved:
+        raise SpecError(f"{path}: reserved fields: {', '.join(sorted(reserved))}")
+    try:
+        title, intent, steps = parse_body(match[2])
+    except (SpecError, ValidationError) as error:
+        raise SpecError(f"{path}: check: {error}") from None
+    raw_files = settings.pop("files", {})
+    if not isinstance(raw_files, dict) or any(not isinstance(v, str) for v in raw_files.values()):
+        raise SpecError(f"{path}: files must map names to file paths")
+    files = {name: (path.parent / file).resolve() for name, file in raw_files.items()}
     for name, file in files.items():
         if not file.is_file():
             raise SpecError(f"{path}: declared file '{name}' does not exist: {file}")

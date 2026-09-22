@@ -25,13 +25,24 @@ qc-use does **not** send:
 
 ## Secrets
 
+CLI headers, setup errors, and repeat summaries also mask declared secrets after loading the test environment.
+
 - A test file contains secret names only.
 - qc-use reads the values from your environment first, then from `.env` next to the test file.
 - Jev chooses which secret goes into which field. Code types the value.
 - A password field accepts secrets only.
-- qc-use hides secret values in `report.md`, `report.json`, `trace.json`, and step screenshots. In screenshots, qc-use draws a black box over each place where a secret value shows. If qc-use cannot find the places, it does not save the screenshot.
+- qc-use hides secret values in `report.md`, `report.json`, `trace.json`, and step screenshots. For screenshots, qc-use checks the page before and after a new capture and masks matching text and form values.
+  It omits changed pages and unsupported secret surfaces, including frames, images, canvas, video, custom elements, and generated CSS content.
+  Cached images are never masked against a later page.
+  Exact matching cannot recognize transformed values or malicious page behavior. This is not protection against a hostile app.
 
-Secret values with fewer than 4 characters are not hidden, because short values match ordinary words. `qc-use doctor` warns you about them.
+Secrets with fewer than four characters are refused before Chrome starts. They cannot be distinguished safely from ordinary text.
+Field names and outcome labels are code-owned values and are not rewritten during redaction.
+
+Each test loads its own environment files. A previous test file cannot supply credentials to the next test.
+
+Secrets can target any editable field. Jev chooses the field; qc-use does not infer a safe destination from a secret name.
+Use test credentials only. The app receives values that qc-use types, and can send them elsewhere.
 
 ## Allowed sites
 
@@ -42,7 +53,8 @@ allow: [auth.localhost:3000, "*.example.test"]
 ```
 
 - Before a click on a link, qc-use checks the link target. A link to another site stops the step.
-- After each action, qc-use checks the page address. If the page left the allowed sites, the step is blocked.
+- After each action and verification read, qc-use checks the page address. An outside address blocks the step.
+- Background requests are not filtered. Script navigation can reach another site before qc-use detects it.
 - If the page opens a new tab or window, the step is blocked.
 
 ## Production URLs
@@ -51,13 +63,18 @@ qc-use refuses to start if the URL looks like production. These URLs are allowed
 
 - `localhost` and IP addresses on your own network.
 - Names that end with `.test`, `.local`, `.localhost`, `.internal`, or `.example`.
-- Names that contain a word such as `staging`, `dev`, `preview`, `qa`, `test`, `sandbox`, or `demo`.
+- Names with a label such as `staging`, `dev`, `preview`, `qa`, `test`, `sandbox`, or `demo`, excluding the final suffix.
+
+A public `.dev` address is not automatically safe. These name checks are heuristics, not proof that a site is staging.
+Some deployment preview names need explicit `allow_production: true`. qc-use does not trust every host on a shared deployment domain.
 
 To run against another URL, set `allow_production: true` in the test file, or use `--allow-production`. Do this only if you are sure.
 
 ## Never-do rules
 
-Before each click and each dropdown choice, the gate asks Jev a yes-or-no question for each never-do rule. The question is: "Can this action break the rule?" Typing, scrolling, and waiting cannot commit anything, so they skip the gate.
+Before each click, fill, dropdown choice, or upload, the gate asks Jev one question per active rule.
+The question is: "Can this action break the rule?" Each action receives a new verdict.
+Typing and uploads can submit data through page handlers. Scrolling and waiting skip the gate.
 
 The default rules are:
 
@@ -89,7 +106,9 @@ The gate also checks `confirm()` dialogs, such as "Delete this workspace?".
 
 - Each step has an action limit (15 by default) and a decision limit (twice the action limit).
 - Each test has an action limit (60 by default).
-- Each run has a cost limit (`max_cost`, $0.25 by default).
+- Each run has a cost limit (`max_cost`, $0.25 by default). The limit stops the next request after reported spend reaches it.
+  One request can exceed the remaining amount. Unknown or invalid pricing stops further requests.
+  Direct TypeSafe requests use a Jev token estimate. Other providers must report cost; Jev pricing is not applied to them.
 - qc-use never repeats an action to make a step pass. `--repeat N` runs the whole test again in a new profile, and the report shows the pass rate.
 - Each run uses a new, empty Chrome profile. qc-use deletes the profile after the run. Use `--profile DIR` to keep a profile.
 

@@ -3,116 +3,77 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>qc-use · live</title>
 <style>
-  :root { --ink:#16201d; --muted:#65736e; --line:#dde4e1; --bg:#f3f5f4; --card:#fff; --accent:#148278;
-    --pass:#1b7f3b; --fail:#b3261e; --warn:#8a5a00; --stop:#5b4bb5; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--ink);
-    background: var(--bg); }
-  header { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--card);
-    border-bottom: 1px solid var(--line); }
-  header .brand { font-weight: 700; letter-spacing: -.01em; }
-  header .title { font-weight: 600; }
-  header .url { color: var(--muted); font: 12px ui-monospace, monospace; }
-  .pill { margin-left: auto; padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 12px;
-    background: #e5eeeb; }
-  .pill.pass { background: #e3f3e8; color: var(--pass); } .pill.fail { background: #fbe7e5; color: var(--fail); }
-  .pill.blocked, .pill.inconclusive { background: #fbf0dc; color: var(--warn); }
-  .pill.needs_approval { background: #ece9fb; color: var(--stop); }
-  .clock { font: 600 13px ui-monospace, monospace; color: var(--muted); min-width: 64px; text-align: right; }
-  main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 330px; gap: 16px; padding: 16px 22px; }
-  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
-  h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-  ol.steps { list-style: none; padding: 0; margin: 0; }
-  ol.steps li { display: grid; grid-template-columns: 24px 1fr; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); }
-  ol.steps li:first-child { border-top: 0; }
-  ol.steps li.current .text { font-weight: 600; }
-  .icon { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px;
-    background: #edf1ef; color: var(--muted); font-weight: 700; }
-  .current .icon { background: var(--accent); color: #fff; }
-  .pass .icon { background: #e3f3e8; color: var(--pass); } .fail .icon { background: #fbe7e5; color: var(--fail); }
-  .blocked .icon, .inconclusive .icon { background: #fbf0dc; color: var(--warn); }
-  .needs_approval .icon { background: #ece9fb; color: var(--stop); }
-  .expect, .reason { color: var(--muted); font-size: 12px; }
-  .reason { color: var(--fail); }
-  .screen { padding: 0; overflow: hidden; }
-  .screen .bar { display: flex; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
-  .screen .bar span:last-child { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .screen img { display: block; width: 100%; background: #fafbfb; min-height: 320px; }
-  .side { display: grid; gap: 16px; align-content: start; }
-  .row { display: grid; grid-template-columns: 1fr 44px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
-  .row .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row .p { text-align: right; font: 12px ui-monospace, monospace; color: var(--muted); }
-  .meter { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: #edf1ef; overflow: hidden; margin-top: -3px; }
-  .meter i { display: block; height: 100%; background: var(--accent); }
-  .row.chosen .label { font-weight: 600; }
-  ul.actions { list-style: none; padding: 0; margin: 0; font-size: 13px; }
-  ul.actions li { padding: 6px 0; border-top: 1px solid var(--line); }
-  ul.actions li:first-child { border-top: 0; }
-  ul.actions small { color: var(--muted); display: block; }
-  .summary { margin: 0 22px 16px; padding: 12px 16px; border-radius: 12px; background: var(--card);
-    border: 1px solid var(--line); display: none; }
-  .empty { color: var(--muted); font-size: 13px; }
-  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+:root{--ink:#252826;--muted:#707570;--line:#e6e8e3;--bg:#f7f8f5;--paper:#fff;--accent:#287852;--soft:#eaf4ed;--radius:14px;--motion:180ms;--ease:cubic-bezier(.23,1,.32,1)}
+.brand-icon svg,.step-icon svg{width:14px;height:14px}.symbol svg{width:32px;height:32px}#expand svg{width:12px;height:12px;vertical-align:-2px;margin-left:4px}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+button,summary{ -webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px}button:active{transform:scale(.97)}[hidden]{display:none!important}
+.topbar{height:66px;padding:0 28px;display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--line);background:var(--paper)}.brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.7px;font-size:20px}.brand-icon{width:25px;height:25px;border:1.5px solid var(--accent);border-radius:8px;display:grid;place-items:center;color:var(--accent);font-size:16px}.divider{height:18px;width:1px;background:var(--line)}.quiet{color:var(--muted);font-size:12px}.topbar .quiet:last-child{margin-left:auto}.local-dot{display:inline-block;width:6px;height:6px;background:var(--accent);border-radius:50%;margin-right:6px}
+.heading{max-width:1680px;margin:auto;padding:27px 28px 24px;display:flex;align-items:center;justify-content:space-between;gap:24px}.eyebrow{color:var(--muted);font-size:11px;font-weight:600;letter-spacing:1.3px;text-transform:uppercase}h1{font-size:23px;line-height:1.3;font-weight:600;letter-spacing:-.7px;margin:7px 0 6px}.url{color:var(--muted);font:12px ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere}.run-meta{display:flex;align-items:center;gap:20px;flex-shrink:0}.clock{font-size:22px;font-weight:500;letter-spacing:-.5px;font-variant-numeric:tabular-nums}.clock small{font-size:12px;color:var(--muted)}.pill{display:inline-flex;align-items:center;gap:7px;border-radius:99px;background:#eef0eb;padding:6px 11px;font-size:12px;font-weight:600;white-space:nowrap}.pill:before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}.pill.running,.pill.pass{background:var(--soft);color:var(--accent)}.pill.fail{background:#fff0ed;color:#b43f30}.pill.blocked,.pill.inconclusive,.pill.needs_approval{background:#fff5e4;color:#926118}
+main{max-width:1680px;margin:auto;padding:0 28px 28px;display:grid;grid-template-columns:270px minmax(0,1fr) 264px;gap:20px;align-items:start}.panel{border:1px solid var(--line);background:var(--paper);border-radius:var(--radius);overflow:hidden;box-shadow:0 2px 3px #26332503}.panel-head{display:flex;justify-content:space-between;align-items:center;padding:17px 18px;border-bottom:1px solid var(--line)}h2{font-size:12px;font-weight:600;margin:0}.count{font:11px ui-monospace,SFMono-Regular,monospace;color:var(--muted)}.progress{height:2px;background:#eff1eb;overflow:hidden}.progress i{display:block;width:100%;height:100%;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform var(--motion) var(--ease)}
+.steps{list-style:none;padding:8px;margin:0}.steps>li{padding:13px 10px;border-radius:9px;transition:background-color var(--motion) ease}.steps>li.current{background:#f0f6ef}.step-head{display:flex;gap:10px;align-items:flex-start}.step-icon{width:22px;height:22px;flex-shrink:0;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;color:#8b908a;font:11px ui-monospace,monospace;margin-top:1px}.pass .step-icon{background:var(--soft);color:var(--accent);border-color:transparent}.current .step-icon{background:var(--accent);border-color:var(--accent);color:white}.fail .step-icon{color:#b43f30;background:#fff0ed;border-color:transparent}.blocked .step-icon,.needs_approval .step-icon{color:#926118;background:#fff5e4}.step-text{font-size:13px;line-height:1.5;overflow-wrap:anywhere}.current .step-text{font-weight:600}.steps details{margin:6px 0 0 32px;font-size:11px;color:var(--muted)}summary{cursor:pointer;user-select:none}.expect{margin-top:6px;line-height:1.6}.reason{font-size:12px;color:#a24835;margin:7px 0 0 32px;overflow-wrap:anywhere}.step-state{font-size:10px;color:var(--muted);margin:4px 0 0 32px}.path-foot{padding:14px 18px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.screenbar{display:flex;align-items:center;gap:9px;min-height:46px;padding:12px 15px;border-bottom:1px solid var(--line)}.window-dots{display:flex;gap:4px}.window-dots i{width:6px;height:6px;border-radius:50%;background:#dfe3db}.screenbar .url{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}.screenbar button{border:0;background:#f3f5f0;border-radius:5px;padding:3px 7px;font-size:10px;transition:transform 120ms var(--ease)}.stage{position:relative;min-height:350px;aspect-ratio:1120/780;background:#f3f5f1;display:grid;place-items:center;overflow:hidden}.stage img{display:block;width:100%;height:auto}.empty-shot{padding:40px;text-align:center;color:var(--muted);font-size:13px}.empty-shot .symbol{display:block;font-size:30px;color:#a5b29f;margin-bottom:12px}.screen-foot{display:flex;justify-content:space-between;gap:16px;padding:13px 16px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)}.screen-foot strong{font-weight:500;color:var(--ink)}.summary{margin-top:14px;border:1px solid var(--line);background:white;padding:17px 18px;border-radius:var(--radius);font-size:13px;line-height:1.6}.connection{font-size:12px;color:#926118;margin:12px 0}.side{display:grid;gap:16px}.body{padding:16px 18px}.decision-label{font-size:20px;font-weight:500;letter-spacing:-.5px;margin:0 0 4px}.hint{font-size:11px;color:var(--muted)}.row{margin-top:12px}.row-label{display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-bottom:6px}.row-label span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row-label span:last-child{font-variant-numeric:tabular-nums;color:var(--muted)}.meter{height:3px;background:#f0f2ed;border-radius:3px;overflow:hidden}.meter i{display:block;height:100%;width:100%;transform-origin:left;background:#bdc9ba;transition:transform var(--motion) var(--ease)}.row:first-child .meter i{background:var(--accent)}.technical{margin-top:15px;padding-top:12px;border-top:1px solid var(--line)}.activity{list-style:none;padding:0;margin:0;max-height:330px;overflow:auto}.activity li{padding:12px 18px;border-bottom:1px solid #f0f1ed;font-size:12px;overflow-wrap:anywhere}.activity li:last-child{border:0}.activity strong{font-weight:500}.activity small{display:block;margin-top:4px;font-size:10px;color:var(--muted)}.action-op{color:var(--accent);font-size:10px;margin-right:5px}.empty{font-size:12px;color:var(--muted)}.screen:fullscreen{max-width:none;background:var(--bg);overflow:auto}.screen:fullscreen .stage{height:calc(100vh - 100px);aspect-ratio:auto}.screen:fullscreen img{height:100%;width:auto;max-width:100%;object-fit:contain}
+@media(min-width:1500px){main{grid-template-columns:300px minmax(0,1fr) 280px}}
+@media(max-width:1150px){main{grid-template-columns:240px minmax(0,1fr)}.side{grid-column:1/-1;grid-template-columns:1fr 1fr}.activity{max-height:230px}}
+@media(max-width:700px){.topbar{padding:0 18px;height:56px}.topbar .divider,.topbar>.quiet:not(:last-child){display:none}.heading{padding:22px 18px;align-items:flex-start;gap:12px}h1{font-size:20px}.run-meta{flex-direction:column;align-items:flex-end;gap:8px}.clock{font-size:17px}main{padding:0 18px 24px;display:flex;flex-direction:column;gap:16px}.path,.center,.side{width:100%}.center{order:-1}.side{display:grid;grid-template-columns:1fr}.stage{min-height:220px}.heading .url{font-size:10px}.steps{display:grid;grid-template-columns:1fr 1fr}.path-foot{display:none}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}button:active{transform:none}}
 </style>
 </head>
 <body>
-<header>
-  <span class="brand">qc-use</span><span class="title" id="title"></span><span class="url" id="url"></span>
-  <span class="pill" id="status">running</span><span class="clock" id="clock">0.0 s</span>
-</header>
-<div class="summary" id="summary"></div>
+<header class="topbar"><span class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6"/></svg></span>qc-use</span><span class="divider"></span><span class="quiet">Critical-path QA</span><span class="quiet"><span class="local-dot"></span>Local browser</span></header>
+<div class="heading"><div><div class="eyebrow">Live run</div><h1 id="title">Preparing your test</h1><div class="url" id="url"></div></div><div class="run-meta"><span class="pill running" id="status" role="status">Connecting</span><div class="clock"><span id="clock">0.0</span> <small>s</small></div></div></div>
 <main>
-  <section><h2>Critical path</h2><ol class="steps" id="steps"></ol></section>
-  <section class="screen">
-    <div class="bar"><span id="page-title">Waiting for the first page…</span><span id="page-url"></span></div>
-    <img id="shot" alt="The page under test">
-  </section>
-  <div class="side">
-    <section><h2>Jev's operation</h2><div id="operations" class="empty">No decision yet.</div></section>
-    <section><h2>Jev's target</h2><div id="targets" class="empty">—</div></section>
-    <section><h2>Actions</h2><ul class="actions" id="actions"></ul></section>
-  </div>
+<section class="panel path" aria-label="Critical path"><div class="panel-head"><h2>Critical path</h2><span class="count" id="count">0 / 0</span></div><div class="progress"><i id="progress"></i></div><ol class="steps" id="steps"></ol><div class="path-foot">Every step checked against fresh evidence.</div></section>
+<div class="center"><section class="panel screen" id="screen" aria-label="Browser preview"><div class="screenbar"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="url" id="page-url">Waiting for the browser</span><button id="expand" aria-label="Expand browser preview">Expand <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3h7v7 M21 3l-7 7 M10 21H3v-7 M3 21l7-7"/></svg></button></div><div class="stage"><div class="empty-shot" id="empty-shot"><span class="symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 5h18v14H3z M3 9h18 M7 7h.01 M10 7h.01"/></svg></span><span id="image-message">The browser preview will appear here.</span></div><img id="shot" alt="Masked page under test" hidden></div><div class="screen-foot"><strong id="page-title">Opening a private browser</strong><span>Read-only preview</span></div></section><p class="connection" id="connection" role="status" hidden></p><div class="summary" id="summary" role="status" hidden></div></div>
+<aside class="side" aria-label="Run details"><section class="panel"><div class="panel-head"><h2>Current decision</h2><span class="count">Jev</span></div><div class="body"><p class="decision-label" id="decision-label">Getting ready</p><div class="hint" id="decision-hint">Reading the current page.</div><div id="targets"></div><details class="technical"><summary class="hint">Operation probabilities</summary><div id="operations"></div></details></div></section><section class="panel"><div class="panel-head"><h2>Recent actions</h2><span class="count" id="action-count">0</span></div><ol class="activity" id="actions"><li class="empty">Actions appear as the test runs.</li></ol></section></aside>
 </main>
 <script>
-const token = new URLSearchParams(location.search).get("t");
-const $ = (id) => document.getElementById(id);
-const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
-const pct = (p) => `${Math.round(p * 100)}%`;
-const icons = { pass: "✓", fail: "✕", blocked: "!", inconclusive: "?", needs_approval: "✋", skipped: "–" };
-let shot = 0;
-function bars(rows, chosen) {
-  return rows.map((r, i) => `<div class="row ${i === 0 && chosen ? "chosen" : ""}"><span class="label" title="${esc(r.label)}">${esc(r.label)}</span>` +
-    `<span class="p">${pct(r.p)}</span><span class="meter"><i style="width:${pct(r.p)}"></i></span></div>`).join("");
+const token=new URLSearchParams(location.search).get('t');
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const probability=p=>Math.max(0,Math.min(1,Number(p)||0));
+const pct=p=>`${Math.round(probability(p)*100)}%`;
+const labels={CLICK:'Click',TYPE_TEXT:'Enter text',SELECT:'Select',UPLOAD:'Upload',WAIT:'Wait',SCROLL_DOWN:'Scroll down',SCROLL_UP:'Scroll up',DONE:'Check the result',BLOCKED:'Unable to continue'};
+const states={running:'Running',pass:'Passed',fail:'Failed',blocked:'Blocked',inconclusive:'Inconclusive',needs_approval:'Needs approval',skipped:'Skipped',stopped:'Stopped'};
+const iconPaths={pass:'m5 12 4 4L19 6',fail:'m6 6 12 12 M6 18 18 6',blocked:'M8 5v14 M16 5v14',inconclusive:'M9 8a3 3 0 1 1 5 2c-1 1-2 1-2 3 M12 17h.01',needs_approval:'M12 5v9 M12 18h.01',skipped:'M5 12h14',expand:'M14 3h7v7 M21 3l-7 7 M10 21H3v-7 M3 21l7-7',collapse:'M21 10h-7V3 M14 10l7-7 M3 14h7v7 M10 14l-7 7'};
+function icon(name){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="${iconPaths[name]}"/></svg>`}
+const rendered=new Map();let shot=-1,failures=0,finished=false;
+function html(id,value){if(rendered.get(id)===value)return;$(id).innerHTML=value;rendered.set(id,value)}
+function bars(rows){return rows.map(r=>`<div class="row"><div class="row-label"><span title="${esc(r.label)}">${esc(labels[r.label]||r.label)}</span><span>${pct(r.p)}</span></div><div class="meter"><i style="transform:scaleX(${probability(r.p)})"></i></div></div>`).join('')}
+function render(s){
+ $('title').textContent=s.title;$('url').textContent=s.url;
+ const status=states[s.status]?s.status:'stopped';$('status').textContent=states[status];$('status').className=`pill ${status}`;
+ $('clock').textContent=((s.elapsed_ms||0)/1000).toFixed(1);
+ const passed=s.steps.filter(x=>x.outcome==='pass').length;$('count').textContent=`${passed} / ${s.steps.length}`;
+ $('progress').style.transform=`scaleX(${passed/Math.max(1,s.steps.length)})`;
+ // Keep disclosure nodes in place while the clock and probabilities update.
+ s.steps.forEach((step,i)=>{
+  let li=$('steps').children[i];if(!li){li=document.createElement('li');li.innerHTML='<div class="step-head"><span class="step-icon" aria-hidden="true"></span><span class="step-text"></span></div><div class="step-state"></div><details><summary>Evidence</summary><div class="expect"></div></details><div class="reason"></div>';$('steps').append(li)}
+  const state=step.outcome||(i===s.current&&status==='running'?'current':'');li.className=states[state]||state==='current'?state:'';
+  li.querySelector('.step-icon').innerHTML=Object.hasOwn(iconPaths,step.outcome)?icon(step.outcome):String(i+1);li.querySelector('.step-text').textContent=step.text;
+  li.querySelector('.step-state').textContent=state==='current'?'In progress':states[state]||'Pending';
+  const evidence=[...(step.expect||[]),...(step.checks||[]).map(c=>`${states[c.outcome]||c.outcome}: ${c.text}`)];
+  li.querySelector('details').hidden=!evidence.length;li.querySelector('.expect').textContent=evidence.join(' · ');
+  li.querySelector('.reason').textContent=step.reason||'';
+ });
+ if(s.page){$('page-title').textContent=s.page.title||'Untitled page';$('page-url').textContent=s.page.url||''}
+ if(s.shot!==shot){shot=s.shot;const visible=s.has_screenshot===true;$('shot').hidden=!visible;$('empty-shot').hidden=visible;if(visible)$('shot').src=`/api/screenshot?t=${encodeURIComponent(token)}&n=${shot}`;else{$('shot').removeAttribute('src');$('image-message').textContent='Preview withheld until the page can be safely masked.'}}
+ const d=s.decision;$('decision-label').textContent=d?labels[d.operation]||d.operation:'Getting ready';
+ $('decision-hint').textContent=d?`${d.latency_ms} ms · ${pct(d.confidence)} confidence`:'Reading the current page.';
+ html('operations',d?bars(d.operations):'<p class="empty">Waiting for a decision.</p>');html('targets',d&&d.targets.length?bars(d.targets):'');
+ $('action-count').textContent=s.action_count??s.actions.length;
+ html('actions',s.actions.slice().reverse().map(a=>`<li><span class="action-op">${esc(labels[a.operation]||a.operation)}</span><strong>${esc(a.action)}</strong>${a.text?`<div>${esc(a.text)}</div>`:''}<small>${pct(a.probability)} · ${Number(a.latency_ms)||0} ms · ${a.page_changed===false?'no visible change':a.page_changed===true?'page changed':'change not confirmed'}</small></li>`).join('')||'<li class="empty">Actions appear as the test runs.</li>');
+ $('summary').hidden=!s.summary;$('summary').textContent=s.summary||'';finished=status!=='running';
 }
-async function tick() {
-  let s;
-  try { s = await (await fetch(`/api/state?t=${token}`)).json(); } catch { return; }
-  $("title").textContent = s.title;
-  $("url").textContent = s.url;
-  $("status").textContent = s.status.replace("_", " ");
-  $("status").className = `pill ${s.status}`;
-  $("clock").textContent = `${((s.elapsed_ms || 0) / 1000).toFixed(1)} s`;
-  $("steps").innerHTML = s.steps.map((step, i) => {
-    const state = step.outcome || (i === s.current && s.status === "running" ? "current" : "");
-    return `<li class="${state}"><span class="icon">${icons[step.outcome] || i + 1}</span><div><div class="text">${esc(step.text)}</div>` +
-      step.expect.map((e) => `<div class="expect">expect: ${esc(e)}</div>`).join("") +
-      (step.reason ? `<div class="reason">${esc(step.reason)}</div>` : "") + `</div></li>`;
-  }).join("");
-  if (s.page) { $("page-title").textContent = s.page.title || "Untitled page"; $("page-url").textContent = s.page.url; }
-  if (s.shot !== shot) { shot = s.shot; $("shot").src = `/api/screenshot?t=${token}&n=${shot}`; }
-  const d = s.decision;
-  $("operations").className = d ? "" : "empty";
-  $("operations").innerHTML = d ? bars(d.operations, true) + `<div class="expect">${d.latency_ms} ms · confidence ${pct(d.confidence)}</div>` : "No decision yet.";
-  $("targets").className = d && d.targets.length ? "" : "empty";
-  $("targets").innerHTML = d && d.targets.length ? bars(d.targets, true) : "—";
-  $("actions").innerHTML = s.actions.slice().reverse().map((a) =>
-    `<li>${esc(a.operation)} <b>${esc(a.action)}</b>${a.text ? ` ← ${esc(a.text)}` : ""}<small>${pct(a.probability)} · ${a.latency_ms} ms · ${a.page_changed === false ? "no visible change" : "page changed"}</small></li>`
-  ).join("") || `<li class="empty">No actions yet.</li>`;
-  if (s.summary) { $("summary").style.display = "block"; $("summary").textContent = s.summary; }
-  if (s.status === "running") setTimeout(tick, 250);
+async function tick(){
+ try{const response=await fetch(`/api/state?t=${encodeURIComponent(token)}`,{cache:'no-store'});if(!response.ok)throw Error('connection');render(await response.json());failures=0;$('connection').hidden=true}
+ catch{failures++;$('connection').hidden=false;$('connection').textContent=failures<4?'Connection interrupted. Reconnecting…':'Live connection ended. The last received state is shown.'}
+ if(!finished&&failures<12)setTimeout(tick,document.hidden?1500:350);
 }
+$('expand').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('screen').requestFullscreen()}catch{$('connection').hidden=false;$('connection').textContent='Full screen is unavailable in this browser.'}};
+document.addEventListener('fullscreenchange',()=>{$('expand').innerHTML=(document.fullscreenElement?'Close ':'Expand ')+icon(document.fullscreenElement?'collapse':'expand');$('expand').setAttribute('aria-label',document.fullscreenElement?'Close full screen':'Expand browser preview')});
+$('shot').onerror=()=>{$('shot').hidden=true;$('empty-shot').hidden=false;$('image-message').textContent='Waiting for a safe preview.'};
 tick();
 </script>
 </body>

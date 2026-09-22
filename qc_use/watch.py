@@ -1,6 +1,7 @@
 """`qc-use run --watch`: a read-only live view of a run. Loopback only, behind a per-run token."""
 
 import json
+import os
 import secrets
 import threading
 import time
@@ -9,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .engine import model
+from .secrets import Redactor
 
 PAGE = Path(__file__).with_name("watch.html")
 
@@ -20,9 +21,13 @@ def top(probabilities, labels, limit=6):
 
 
 class Watch:
+    server: ThreadingHTTPServer
+
     def __init__(self, spec):
+        self.redact = Redactor({name: os.environ.get(name, "") for name in spec.secrets})
         self.token = secrets.token_urlsafe(16)
         self.lock = threading.Lock()
+        self.final_seen = threading.Event()
         self.started = time.perf_counter()
         self.state = {
             "title": spec.title,
@@ -68,11 +73,12 @@ class Watch:
                 "targets": top(last["target_probabilities"], targets),
             }
         page = state["page"] or {}
-        redact = model.HOOKS["redact"] or (lambda value: value)
+        redact = self.redact
         with self.lock:
             self.state.update(
                 current=index,
-                decision=decision,
+                action_count=len(state["history"]),
+                decision=redact(decision),
                 page=redact({"url": page.get("url", ""), "title": page.get("title", "")}),
                 actions=redact(
                     [
@@ -85,21 +91,31 @@ class Watch:
                 ),
                 elapsed_ms=round((time.perf_counter() - self.started) * 1000),
             )
-            if image:
-                self.screenshot = image
-                self.state["shot"] += 1
+            self.screenshot = image or b""
+            self.state["shot"] += 1
+            self.state["has_screenshot"] = bool(image)
 
     def record(self, result):
         with self.lock:
             step = self.state["steps"][result.index - 1]
-            step.update(outcome=result.outcome, reason=result.reason, checks=[c.model_dump() for c in result.checks])
+            step.update(
+                outcome=result.outcome,
+                reason=self.redact(result.reason),
+                checks=self.redact([c.model_dump() for c in result.checks]),
+            )
 
     def finish(self, report=None):
+        if report:
+            for result in report.steps:
+                self.record(result)
         with self.lock:
             self.state["status"] = report.outcome if report else "stopped"
             self.state["summary"] = report.summary if report else ""
             self.state["elapsed_ms"] = round((time.perf_counter() - self.started) * 1000)
-        time.sleep(1)  # Let the open page fetch the final state before the process exits.
+        self.final_seen.wait(2)  # A background viewer polls less often.
+        if hasattr(self, "server"):
+            self.server.shutdown()
+            self.server.server_close()
 
     def handler(self):
         watch = self
@@ -107,14 +123,20 @@ class Watch:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 query = parse_qs(urlparse(self.path).query)
-                if query.get("t", [""])[0] != watch.token or not self.headers.get("Host", "").startswith("127.0.0.1"):
+                if (
+                    query.get("t", [""])[0] != watch.token
+                    or self.headers.get("Host", "") != f"127.0.0.1:{watch.server.server_port}"
+                ):
                     return self.reply(403, b"Forbidden", "text/plain")
                 path = urlparse(self.path).path
                 if path == "/":
                     return self.reply(200, PAGE.read_bytes(), "text/html; charset=utf-8")
                 with watch.lock:
                     if path == "/api/state":
-                        return self.reply(200, json.dumps(watch.state).encode(), "application/json")
+                        self.reply(200, json.dumps(watch.redact(watch.state)).encode(), "application/json")
+                        if watch.state["status"] != "running":
+                            watch.final_seen.set()
+                        return
                     if path == "/api/screenshot" and watch.screenshot:
                         return self.reply(200, watch.screenshot, "image/jpeg")
                 self.reply(404, b"Not found", "text/plain")

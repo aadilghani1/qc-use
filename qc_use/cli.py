@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 from functools import partial
 from pathlib import Path
@@ -23,13 +24,21 @@ def ask_person(rule, action, probability):
 def run_command(args):
     from .report import SETUP_ERROR
     from .runner import SetupError, run
-    from .secrets import load_env
+    from .secrets import Redactor, load_env
     from .spec import SpecError, load
 
     interactive = sys.stdin.isatty() and sys.stdout.isatty() and not args.json
-    echo = partial(print, flush=True) if not args.json else (lambda *_: None)
+    output = partial(print, flush=True) if not args.json else (lambda *_: None)
+    redact = Redactor({})
+
+    def echo(message):
+        output(redact.text(message))
+
     codes, reports = [], []
+    initial_environment = dict(os.environ)
     for file in args.files:
+        os.environ.clear()
+        os.environ.update(initial_environment)
         try:
             spec = load(file)
         except (SpecError, OSError) as error:
@@ -38,15 +47,16 @@ def run_command(args):
             continue
         load_env(spec.path.parent)
         load_env(Path.cwd())
+        redact = Redactor({name: os.environ.get(name, "") for name in spec.secrets})
         for attempt in range(args.repeat):
             label = f" (run {attempt + 1}/{args.repeat})" if args.repeat > 1 else ""
             echo(f"qc-use · {spec.title}{label} · {spec.url}")
             live = None
-            if args.watch:
-                from .watch import Watch
-
-                live = Watch.start(spec, echo)
             try:
+                if args.watch:
+                    from .watch import Watch
+
+                    live = Watch.start(spec, echo)
                 report = run(
                     spec,
                     allow=args.allow,
@@ -59,8 +69,12 @@ def run_command(args):
                     screenshots=not args.no_screenshots,
                     echo=echo,
                 )
-            except (SetupError, RuntimeError) as error:
-                print(f"qc-use: {error}", file=sys.stderr)
+            except KeyboardInterrupt:
+                if live:
+                    live.finish()
+                raise
+            except (SetupError, RuntimeError, ValueError, TimeoutError, OSError) as error:
+                print(redact.text(f"qc-use: {error}"), file=sys.stderr)
                 codes.append(SETUP_ERROR)
                 if live:
                     live.finish()
@@ -73,6 +87,10 @@ def run_command(args):
             seconds = report.elapsed_ms / 1000
             echo(f"{MARK[report.outcome]} {report.outcome} · {report.summary} ({seconds:.1f} s, {cost})")
             echo(f"   {Path(report.artifacts['folder']) / 'report.md'}\n")
+            if report.exit_code == 130:
+                break
+        if codes and codes[-1] == 130:
+            break
         if args.repeat > 1:
             runs = [r for r in reports if r.test["file"] == str(spec.path)]
             passed = sum(r.outcome == "pass" for r in runs)
@@ -94,7 +112,7 @@ def init_command(args):
 def demo_command(args):
     from .demo import main
 
-    return main(port=args.port, serve_only=args.serve, headless=args.headless)
+    return main(port=args.port, serve_only=args.serve, headless=args.headless, results=args.results)
 
 
 def skill_command(args):
@@ -122,10 +140,13 @@ def doctor_command(args):
 
 
 def schema_command(args):
+    from pydantic import BaseModel
+
     from .report import Report
     from .spec import TestSpec
 
-    model = {"report": Report, "test": TestSpec}[args.kind]
+    models: dict[str, type[BaseModel]] = {"report": Report, "test": TestSpec}
+    model = models[args.kind]
     print(json.dumps(model.model_json_schema(), indent=2))
     return 0
 
@@ -164,6 +185,7 @@ def parser():
     demo.add_argument("--serve", action="store_true", help="Only serve the demo app.")
     demo.add_argument("--port", type=int, default=3100)
     demo.add_argument("--headless", action="store_true")
+    demo.add_argument("--results", default="qa-results", help="Where demo run folders are written.")
     demo.set_defaults(handler=demo_command)
 
     skill = commands.add_parser("skill", help="Print or install the coding-agent skill.")
@@ -189,8 +211,11 @@ def main(argv=None):
     if getattr(args, "repeat", 1) < 1:
         print("qc-use: --repeat must be at least 1", file=sys.stderr)
         return SETUP_ERROR
+    from .secrets import environment
+
     try:
-        return args.handler(args)
+        with environment():
+            return args.handler(args)
     except KeyboardInterrupt:
         print("\nqc-use: interrupted", file=sys.stderr)
         return 130

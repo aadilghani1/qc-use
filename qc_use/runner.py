@@ -1,20 +1,14 @@
 """Run a test file end to end: one private browser, one Jev goal per step, independent checks, one report."""
 
-import base64
-import contextlib
-import io
 import json
-import os
 import secrets as tokens
-import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from PIL import Image, ImageDraw
-
 from . import __version__, judge
-from .chrome import Chrome
+from .capture import masked, screenshot
+from .chrome import Chrome, connect, disconnect
 from .engine import model
 from .engine.agent import Agent, Blocked, NeedsApproval
 from .guards import Guardrails, looks_like_production
@@ -33,10 +27,8 @@ from .report import (
     markdown,
     plural,
 )
-from .secrets import MIN_MASKED, Redactor, resolve
+from .secrets import Redactor, resolve
 
-# browser-harness reads BU_NAME when it is imported: one daemon name per qc-use process.
-DAEMON = f"qc-use-{os.getpid()}"
 SETTLE_SECONDS = 1.0  # One read-only re-check for pages that finish rendering just after DONE.
 
 
@@ -67,86 +59,20 @@ def compose_goal(spec, index, results, tag):
     return "\n".join(lines)
 
 
-def connect(chrome):
-    os.environ["BU_NAME"] = DAEMON
-    os.environ["BU_CDP_URL"] = chrome.url
-    from browser_harness.admin import daemon_alive, restart_daemon
-
-    if daemon_alive(DAEMON):
-        restart_daemon(DAEMON)  # A daemon from an earlier run in this process points at a closed Chrome.
-
-
-def reap(pid):
-    with contextlib.suppress(ChildProcessError, OSError):
-        os.waitpid(pid, 0)
-
-
-def disconnect(browser):
-    from browser_harness import _ipc
-    from browser_harness.admin import restart_daemon
-
-    try:
-        if browser:
-            browser.close()
-    finally:
-        # The daemon is our child. Reap it as it exits, or the harness waits 15 s on the zombie.
-        if pid := _ipc.identify(DAEMON, timeout=2.0):
-            threading.Thread(target=reap, args=(pid,), daemon=True).start()
-        restart_daemon(DAEMON)
-
-
-# Read-only: where secret values appear on screen, so saved screenshots can black them out.
-SECRET_RECTS = """(values => {
-  const rects=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
-  for (let node; (node=walker.nextNode());) for (const value of values) {
-    for (let i=node.textContent.indexOf(value); i>=0; i=node.textContent.indexOf(value,i+value.length)) {
-      const range=document.createRange(); range.setStart(node,i); range.setEnd(node,i+value.length);
-      for (const r of range.getClientRects()) rects.push([r.x,r.y,r.width,r.height]);
-    }
-  }
-  for (const e of document.querySelectorAll('input,textarea')) {
-    if (!values.some(v=>(e.value||'').includes(v))) continue;
-    const r=e.getBoundingClientRect(); rects.push([r.x,r.y,r.width,r.height]);
-  }
-  return rects;
-})"""
-
-
-def masked(browser, data, secrets):
-    """JPEG bytes with every visible secret value blacked out, or None if masking could not be done."""
-    try:
-        data = data or browser.call("Page.captureScreenshot", format="jpeg", quality=72)["data"]
-        values = [v for v in secrets.values() if len(v) >= MIN_MASKED]
-        rects = browser.evaluate(f"{SECRET_RECTS}({json.dumps(values)})") if values else []
-    except Exception:
-        return None
-    image = Image.open(io.BytesIO(base64.b64decode(data))).convert("RGB")
-    draw = ImageDraw.Draw(image)
-    for x, y, w, h in rects or []:
-        draw.rectangle([x - 2, y - 2, x + w + 2, y + h + 2], fill=(24, 24, 24))
-    output = io.BytesIO()
-    image.save(output, "JPEG", quality=80)
-    return output.getvalue()
-
-
-def screenshot(browser, page, folder, name, secrets):
-    """Save a step screenshot. If masking fails, save nothing."""
-    image = masked(browser, page.get("screenshot") if page else None, secrets)
-    if image is None:
-        return None
-    (folder / name).write_bytes(image)
-    return f"steps/{name}"
-
-
-def verify(spec, step, browser, goal):
+def verify(spec, step, browser, goal, guard=None, history=()):
     """Check the step on fresh observations. DONE is a claim; these answers are the evidence."""
-    statements = step.expect or [step.text]
+    statements = [step.text, *step.expect] if step.expect else [step.text]
     kind = "expect" if step.expect else "implicit"
     for attempt in range(2):
-        page = browser.observe(screenshot=True)
+        page = browser.observe(screenshot=False)
+        (guard or Guardrails(spec)).after_observe(page)
+        if tabs := browser.new_tabs():
+            raise Blocked(f"unsupported: the page opened a new tab or window ({tabs[0]})")
         checks = [
             CheckResult(kind=kind, text=text, probability=round(p, 4), outcome=band(p, spec.bands))
-            for text, p in zip(statements, judge.expectations(page, goal, statements), strict=True)
+            for text, p in zip(
+                statements, judge.expectations(page, goal, statements, history, action_statement=step.text), strict=True
+            )
         ]
         checks += [
             CheckResult(kind="check", text=str(c), outcome="pass" if c.evaluate(page) else "fail") for c in step.check
@@ -163,6 +89,16 @@ def run_step(spec, index, browser, guard, page, history, results, context):
     dialogs_before = len(browser.dialogs)
     started = time.perf_counter()
     remaining = spec.budget.test - len(history)
+    first_action = len(history)
+
+    def complete(current):
+        if not all(check.evaluate(current) for check in step.check):
+            return False
+        probabilities = judge.expectations(
+            current, goal, [step.text, *step.expect], history[first_action:], action_statement=step.text
+        )
+        return all(band(p, spec.bands) == "pass" for p in probabilities)
+
     agent = Agent(
         browser,
         goal,
@@ -173,7 +109,8 @@ def run_step(spec, index, browser, guard, page, history, results, context):
         files=spec.files,
         policy=guard,
         screenshots=context["live"] is not None,
-        done_when=step.expect,
+        done_when=[step.text, *step.expect, *(str(c) for c in step.check)],
+        completion_check=complete,
     )
     outcome, reason, checks, approval, final = "blocked", None, [], None, None
     try:
@@ -184,7 +121,7 @@ def run_step(spec, index, browser, guard, page, history, results, context):
                 shot = (state["page"] or {}).get("screenshot")
                 context["live"](index, state, masked(browser, shot, context["secrets"]) if shot else None)
         if agent.state["status"] == "done":
-            checks, final = verify(spec, step, browser, goal)
+            checks, final = verify(spec, step, browser, goal, guard, history[agent.state["first_action"] :])
             outcome = next((o for o in ("fail", "inconclusive") if any(c.outcome == o for c in checks)), "pass")
             if outcome != "pass":
                 reason = "; ".join(f"{c.kind} {c.outcome}: {c.text}" for c in checks if c.outcome != "pass")
@@ -194,6 +131,9 @@ def run_step(spec, index, browser, guard, page, history, results, context):
             reason = ("Three actions in a row changed nothing. " if stuck else "Jev found no way forward. ") + (
                 f"Most likely: {judge.REASONS[code]} ({p:.0%})"
             )
+    except KeyboardInterrupt:
+        context["interrupted"] = True
+        reason = "Run interrupted; inspect the page before retrying."
     except Blocked as error:
         reason = str(error)
     except NeedsApproval as error:
@@ -327,28 +267,43 @@ def run(
         )
     try:
         secrets = resolve(spec.secrets)
+    except ValueError as error:
+        raise SetupError(str(error)) from None
     except KeyError as error:
         where = spec.path.parent / ".env" if spec.path else "qa/.env"
         raise SetupError(f"Missing secrets: {error.args[0]}. Set them in the environment or in {where}.") from None
-    jev_url, keys, policy_model = model.jev_endpoint()
+    try:
+        jev_url, keys, policy_model = model.jev_endpoint()
+    except ValueError as error:
+        raise SetupError(str(error)) from None
     if not model.credential(keys):
         raise SetupError(f"Jev needs {' or '.join(keys)}. Run `qc-use doctor` for setup help.")
     run_id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-") + tokens.token_hex(2)
     out = Path(results_dir) / run_id
     (out / "steps").mkdir(parents=True)
     redact, meter = Redactor(secrets), model.Meter(spec.max_cost)
+    raw_echo = echo
+
+    def safe_echo(message):
+        raw_echo(redact.text(message))
+
+    if live:
+        live.redact = redact
     model.configure(redact=redact, meter=meter)
-    guard = Guardrails(spec, allow, approve)
+    safe_approve = (lambda rule, action, p: approve(redact.text(rule), redact.text(action), p)) if approve else None
+    guard = Guardrails(spec, allow, safe_approve)
     context = {"tag": tokens.token_hex(3), "secrets": secrets, "out": out, "live": live, "screenshots": screenshots}
     started, started_at = time.perf_counter(), datetime.now(UTC).isoformat(timespec="seconds")
     results, traces, approval, browser, chrome = [], [], None, None, None
+    ratings: list[RatingResult] = []
+    cleanup_errors: list[str] = []
     try:
         chrome = Chrome(profile=profile, headless=headless)
         connect(chrome)
         from .engine.browser import Browser
 
         browser = Browser(spec.url, on_dialog=guard.on_dialog)
-        history = []
+        history: list[dict] = []
         try:
             page = browser.observe(screenshot=live is not None)
             guard.after_observe(page)
@@ -356,13 +311,13 @@ def run(
             page = None
             results.append(StepResult(index=1, text=spec.steps[0].text, outcome="blocked", reason=str(error)))
         for index in range(len(spec.steps) if page is not None else 0):
-            echo(f"  {index + 1}/{len(spec.steps)} {spec.steps[index].text}")
+            safe_echo(f"  {index + 1}/{len(spec.steps)} {spec.steps[index].text}")
             result, approval, page, trace = run_step(spec, index, browser, guard, page, history, results, context)
             results.append(result)
             traces.append(trace)
             if live:
                 live.record(result)
-            echo(
+            safe_echo(
                 f"      {result.outcome} · {plural(len(result.actions), 'action')} · {result.elapsed_ms / 1000:.1f} s"
                 + (f" · {result.reason}" if result.reason else "")
             )
@@ -373,19 +328,38 @@ def run(
             for i in range(len(results), len(spec.steps))
         ]
         ratings = []
-        if spec.rate and any(r.actions for r in results):
+        if spec.rate and not context.get("interrupted"):
             try:
                 ratings = rate(spec, results, round((time.perf_counter() - started) * 1000))
             except (model.BudgetExceeded, RuntimeError, ValueError) as error:
-                echo(f"  Ratings skipped: {error}")
+                safe_echo(f"  Ratings unavailable: {error}")
+                if any(r.min is not None for r in spec.rate.values()) and all(r.outcome == "pass" for r in results):
+                    results[-1].outcome = "inconclusive"
+                    results[-1].reason = "A required rating could not be checked."
+    except (RuntimeError, ValueError, TimeoutError, OSError, KeyboardInterrupt) as error:
+        context["interrupted"] = isinstance(error, KeyboardInterrupt)
+        reason = "Run interrupted." if context["interrupted"] else str(error)
+        index = len(results)
+        if index < len(spec.steps):
+            results.append(StepResult(index=index + 1, text=spec.steps[index].text, outcome="blocked", reason=reason))
+        elif results:
+            results[-1].outcome, results[-1].reason = "blocked", reason
+        results += [
+            StepResult(index=i + 1, text=spec.steps[i].text, outcome="skipped")
+            for i in range(len(results), len(spec.steps))
+        ]
     finally:
-        try:
-            if chrome:
-                disconnect(browser)
-        finally:
-            if chrome:
-                chrome.close()
-            model.configure()
+        if chrome:
+            for close in (lambda: disconnect(browser), chrome.close):
+                try:
+                    close()
+                except (RuntimeError, ValueError, TimeoutError, OSError) as error:
+                    cleanup_errors.append(str(error))
+        model.configure()
+    if cleanup_errors:
+        safe_echo("  Cleanup: " + "; ".join(cleanup_errors))
+        if results and all(r.outcome == "pass" for r in results):
+            results[-1].outcome, results[-1].reason = "blocked", "Browser cleanup failed: " + "; ".join(cleanup_errors)
     outcome, summary = summarize(results, ratings)
     route = "Vercel AI Gateway" if jev_url.startswith(model.GATEWAY) else jev_url.split("/")[2]
     report = Report(
@@ -394,7 +368,7 @@ def run(
         started_at=started_at,
         elapsed_ms=round((time.perf_counter() - started) * 1000),
         outcome=outcome,
-        exit_code=EXIT_CODES[outcome],
+        exit_code=130 if context.get("interrupted") else EXIT_CODES[outcome],
         summary=summary,
         steps=results,
         ratings=ratings,
@@ -410,7 +384,7 @@ def run(
         artifacts={"json": "report.json", "markdown": "report.md", "trace": "trace.json", "folder": str(out)},
     )
     # One more redaction pass on everything written to disk.
-    report = Report.model_validate(redact(report.model_dump(mode="json")))
+    report = report.redacted(redact)
     (out / "report.json").write_text(report.model_dump_json(indent=2))
     (out / "report.md").write_text(markdown(report))
     trace = {"test": spec.model_dump(mode="json"), "gates": guard.gates, "steps": traces}

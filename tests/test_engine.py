@@ -491,7 +491,7 @@ def test_fingerprint_tracks_values_and_identity_not_screenshots():
     assert fingerprint(p) != fingerprint(other)
 
 
-def test_step_done_is_asked_in_the_same_request_and_stops_overshooting(monkeypatch):
+def test_step_done_does_not_override_the_chosen_action(monkeypatch):
     sent = []
 
     def post(_url, _key, body):
@@ -511,5 +511,28 @@ def test_step_done_is_asked_in_the_same_request_and_stops_overshooting(monkeypat
     a.predict()
     assert len(sent) == 1 and "step_done" in sent[0]["questions"]
     a.act()
-    assert a.state["status"] == "done"
-    a.browser.act.assert_not_called()
+    assert a.state["status"] == "ready"
+    a.browser.act.assert_called_once()
+
+
+@pytest.mark.parametrize("exact_passes, expected", [(True, "done"), (False, "ready")])
+@pytest.mark.parametrize("done_probability", [0.73, 0.99])
+def test_completion_uses_independent_evidence_before_next_input(exact_passes, expected, done_probability):
+    a = make_agent(completion_check=lambda page: exact_passes)
+    a.state["history"].append({"action": "Save", "kind": "click", "page_changed": True})
+    a.state["decision"] = decision("e3", operation="CLICK", done_probability=done_probability)
+    a.act()
+    assert a.state["status"] == expected
+    if exact_passes:
+        a.browser.act.assert_not_called()
+    else:
+        a.browser.act.assert_called_once()
+
+
+def test_preexisting_checkpoint_does_not_skip_requested_action():
+    check = Mock(return_value=True)
+    a = make_agent(completion_check=check)
+    a.state["decision"] = decision("e3", operation="CLICK", done_probability=0.99)
+    a.act()
+    check.assert_not_called()
+    a.browser.act.assert_called_once()
