@@ -1,0 +1,19 @@
+{
+  "name": "qc-use",
+  "owner": {
+    "name": "Aadil Ghani",
+    "url": "https://github.com/aadilghani1"
+  },
+  "metadata": {
+    "description": "The qc-use skill: critical-path QA for web apps in plain words."
+  },
+  "plugins": [
+    {
+      "name": "qc-use",
+      "source": "./plugins/qc-use",
+      "description": "Critical-path QA for web apps in plain words. Your agent writes a qc-use test, runs it in a private Chrome, and explains the verdict and evidence for each step.",
+      "category": "testing",
+      "homepage": "https://github.com/aadilghani1/qc-use"
+    }
+  ]
+}

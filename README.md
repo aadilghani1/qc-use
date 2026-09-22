@@ -3,12 +3,19 @@
 <p align="center"><b>Test the most important path in your app. Describe it in plain words.</b></p>
 
 <p align="center">
-  Powered by <a href="https://docs.typesafe.ai/introduction">TypeSafe Jev</a> ·
-  The browser runs on your machine ·
-  <a href="LICENSE">MIT license</a>
+  <a href="https://github.com/aadilghani1/qc-use/actions/workflows/checks.yml"><img src="https://github.com/aadilghani1/qc-use/actions/workflows/checks.yml/badge.svg" alt="checks"></a>
+  <a href="https://pypi.org/project/qc-use/"><img src="https://img.shields.io/pypi/v/qc-use" alt="PyPI"></a>
+  <a href="https://pypi.org/project/qc-use/"><img src="https://img.shields.io/pypi/pyversions/qc-use" alt="Python"></a>
+  <a href="https://github.com/aadilghani1/qc-use/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
 </p>
 
-<p align="center"><img src="docs/images/live-view.png" alt="The qc-use live view during a run: the critical path steps on the left, the page in the middle, and Jev's choices on the right" width="100%"></p>
+<p align="center">
+  Powered by <a href="https://docs.typesafe.ai/introduction">TypeSafe Jev</a> ·
+  The browser runs on your machine ·
+  Tests live in your repo
+</p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/aadilghani1/qc-use/main/docs/images/live-view.png" alt="The qc-use live view during a run: the critical path steps on the left, the page in the middle, and Jev's choices on the right" width="100%"></p>
 
 You write a test like a note to a new teammate:
 
@@ -21,29 +28,40 @@ You write a test like a note to a new teammate:
 
 qc-use opens a private Chrome window and does each step. Then it checks the result. You get a pass or a fail for each step, with the reason and a screenshot.
 
-## Start with one message
+## Install with one prompt
 
 Paste this into your coding agent (Claude Code, Codex, Cursor, Gemini CLI, Copilot, or opencode):
 
 ```text
-Install or upgrade qc-use with uv using Python 3.12:
-uv tool install --python 3.12 --upgrade git+https://github.com/aadilghani1/qc-use
-Then run `qc-use skill install` to register the skill, and `qc-use doctor` to check the setup.
-If setup fails, follow https://github.com/aadilghani1/qc-use/blob/main/install.md
+Install qc-use and test our onboarding critical path on localhost:3000.
+Setup: run `uv tool install --python 3.12 --upgrade qc-use`, then `qc-use skill install`.
+If uv is missing, install it first: https://docs.astral.sh/uv/getting-started/installation/
+Then read the output of `qc-use skill print` and follow it. Docs: https://github.com/aadilghani1/qc-use
 ```
 
-Then ask your agent: **"Test our onboarding critical path on localhost:3000."**
+The agent installs qc-use, finds your app, writes the test file, and shows you the steps. When you agree, it runs the test and explains the report.
+qc-use needs one key: a [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key. The agent asks you to put it in `qa/.env`. Do not paste keys into the chat.
 
-The agent writes the test file and shows you the steps. When you agree, it runs the test and explains the report.
+Other ways to install:
+
+| Where | Command |
+| --- | --- |
+| macOS or Linux terminal | `curl -LsSf https://raw.githubusercontent.com/aadilghani1/qc-use/main/install.sh \| sh` |
+| Windows PowerShell | `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/aadilghani1/qc-use/main/install.ps1 \| iex"` |
+| Claude Code plugin | `/plugin marketplace add aadilghani1/qc-use`, then `/plugin install qc-use@qc-use` |
+| Any agent, with the skills CLI | `npx skills add aadilghani1/qc-use` |
+| uv | `uv tool install --python 3.12 qc-use`, then `qc-use skill install` |
+
+The installers install uv when it is missing, then qc-use, then the skill for each coding agent that they find. The plugin and the skills CLI add the skill only. The skill installs the `qc-use` command on first use.
 
 ## Try it in one minute
 
 qc-use has a small demo app called Beacon. The demo runs 3 tests against it.
 
 ```bash
-uv tool install --python 3.12 git+https://github.com/aadilghani1/qc-use
+uv tool install --python 3.12 qc-use
 export AI_GATEWAY_API_KEY=your-key   # a Vercel AI Gateway key
-qc-use demo
+qc-use demo --watch
 ```
 
 You see one result of each kind:
@@ -53,6 +71,8 @@ You see one result of each kind:
 | Onboarding | ✅ pass | qc-use signs in, fills the profile, uploads an avatar, and reaches the dashboard. |
 | Invite a teammate | ❌ fail | The demo server returns HTTP 500. qc-use catches the bug and shows the evidence. |
 | Delete the workspace | ✋ needs approval | qc-use stops before it deletes data and asks a person. |
+
+The whole demo costs less than $0.001. On 2026-09-22 it took 52 seconds and cost $0.0003.
 
 ## Why qc-use
 
@@ -100,7 +120,16 @@ A new user signs in for the first time and finishes onboarding.
 | `expect:` | What the page must show when the step works. Jev checks it on a fresh read of the page. |
 | `check:` | An exact check by code: `url contains X`, `url matches REGEX`, `title contains X`, `text contains X`, or `text does not contain X`. |
 
-Run `qc-use init` to create a `qa/` folder with an example. The full format is in [docs/test-files.md](docs/test-files.md).
+Run `qc-use init` to create a `qa/` folder with an example. The full format is in [docs/test-files.md](https://github.com/aadilghani1/qc-use/blob/main/docs/test-files.md).
+
+More detail for test authors:
+
+- Use `mode: observe` for read-only steps and `action:` for specific required input.
+- Exact text checks use viewport text. Use `document contains X` for off-screen document text.
+- `verify_timeout` sets the polling window without replaying input.
+- Use `action: Reload the page` and `action: Go back in browser history` to check persistence and navigation. Both pass through the gate.
+
+[docs/test-files.md](https://github.com/aadilghani1/qc-use/blob/main/docs/test-files.md) covers manual authentication, repeatable accounts, ratings, cost evidence, and report schema version 2.
 
 ## Run a test
 
@@ -109,27 +138,22 @@ The CLI runs that test file. It does not generate tests from a prompt by itself.
 Review the generated steps and use a disposable test account.
 
 ```bash
+qc-use init                             # create qa/ with an example test and qa/.env
 qc-use validate qa/onboarding.md --json # offline; no Chrome or model calls
 qc-use doctor qa/onboarding.md --json   # check setup and the start URL
-qc-use skill status                    # find outdated installed instructions
+qc-use run qa/onboarding.md             # run one test
+qc-use run qa/onboarding.md --watch     # also open the live view
+qc-use run qa/*.md --repeat 3           # requires repeat_safe: true and repeatable test accounts
+qc-use run qa/login.md --base-url https://staging.example.test  # same path, another origin
+qc-use run qa/*.md --headless --junit qa-results/junit.xml --summary qa-results/summary.md  # CI outputs
 qc-use report qa-results/<run-id>       # reopen saved step evidence; Ctrl+C closes it
+qc-use skill status                     # find outdated installed instructions
 ```
-
 
 For manual OTP or OAuth sign-in, use a dedicated profile in an interactive terminal:
 
 ```bash
 qc-use run qa/onboarding.md --manual-auth --profile /tmp/qc-use-login --watch
-```
-
-```bash
-qc-use run qa/onboarding.md            # run one test
-qc-use run qa/onboarding.md --watch    # also open the live view
-qc-use run qa/*.md --repeat 3          # requires repeat_safe: true and repeatable test accounts
-qc-use demo --watch                            # visible Chrome and live inspector
-qc-use demo --headless --results /tmp/qc-use-demo  # keep demo reports outside your project
-qc-use run qa/*.md --headless --junit qa-results/junit.xml --summary qa-results/summary.md  # CI outputs
-qc-use run qa/login.md --base-url https://staging.example.test  # same path, another origin
 ```
 
 Each run writes a folder in `qa-results/`:
@@ -148,6 +172,15 @@ The exit code tells your agent or your CI what happened:
 | 3 | needs approval | The next action can break a never-do rule. A person must allow it. |
 | 4 | setup error | The test file, a secret, a key, or the URL is not ready. Nothing ran. |
 
+### Live view and saved evidence
+
+`--headless` hides Chrome. `--watch` opens a separate, read-only live inspector, also when Chrome is headless.
+`qc-use demo --watch` shows both. `BROWSER=true` stops the inspector from opening automatically. Use the printed local URL instead.
+A missing image includes a reason. Opaque regions can be hidden to protect secrets.
+Saved views show the recorded step screenshots and checks. They are not a video or an interactive app session.
+
+The source hash in `qc-use --version` identifies the installed build. After an upgrade, run `qc-use skill install` to refresh the agent instructions.
+
 ## Run in CI
 
 Use the GitHub Action to run your critical paths on each pull request or on a schedule:
@@ -161,7 +194,8 @@ Use the GitHub Action to run your critical paths on each pull request or on a sc
     base-url: https://staging.example.com
 ```
 
-The job summary shows one row for each test. JUnit XML shows one test case for each step. The run folders are uploaded as an artifact. Matrix jobs run tests in parallel. See [docs/ci.md](docs/ci.md).
+The job summary shows one row for each test. JUnit XML shows one test case for each step. The run folders are uploaded as an artifact.
+A `schedule` trigger runs the paths every hour or every day, and GitHub sends an email when a run fails. Matrix jobs run tests in parallel. See [docs/ci.md](https://github.com/aadilghani1/qc-use/blob/main/docs/ci.md).
 
 ## How it works
 
@@ -180,7 +214,7 @@ The job summary shows one row for each test. JUnit XML shows one test case for e
 5. When Jev says that the step is done, qc-use reads the page again. Jev checks each expectation in a separate question. Code checks each exact check.
 6. The step passes only if every check passes. Then the next step starts.
 
-qc-use is built on [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) by Browser Use. More detail is in [docs/how-it-works.md](docs/how-it-works.md).
+qc-use is built on [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) by Browser Use. More detail is in [docs/how-it-works.md](https://github.com/aadilghani1/qc-use/blob/main/docs/how-it-works.md).
 
 ## Safety
 
@@ -192,7 +226,7 @@ qc-use is built on [jev-ultrafast](https://github.com/browser-use/jev-ultrafast)
   Provider outages retain a blocked result and a distinct `provider_issue` in the report. Preflight cannot guarantee later availability.
 - **Limits:** each step has an action limit, each run has a cost limit, and qc-use does not retry uncertain input to hide a failure. Unknown pricing stops further model calls.
 
-The gate is a seatbelt, not a sandbox. Use test accounts and test data. Details are in [docs/safety.md](docs/safety.md).
+The gate is a seatbelt, not a sandbox. Use test accounts and test data. Details are in [docs/safety.md](https://github.com/aadilghani1/qc-use/blob/main/docs/safety.md).
 
 ## What qc-use cannot do yet
 
@@ -215,21 +249,28 @@ qc-use needs Chrome, [uv](https://docs.astral.sh/uv/), and one key.
 | `JEV_PROVIDER` | `gateway` | Set `typesafe` to call TypeSafe directly with `TYPESAFE_API_KEY`. |
 | `TEXT_MODEL` | `inception/mercury-2.5` | The model that writes text for text fields. |
 | `TEXT_MODEL_BASE_URL` | AI Gateway | Any OpenAI-compatible endpoint. Set `TEXT_MODEL_API_KEY` for other providers. |
+| `QC_USE_CHROME` | found automatically | The path of Chrome or Chromium. |
 
-Put these values in `qa/.env` (qc-use keeps it out of git) or in your environment. Run `qc-use doctor` to check everything. The full guide is in [install.md](install.md).
+Put these values in `qa/.env` (qc-use keeps it out of git) or in your environment. Run `qc-use doctor` to check everything. The full guide is in [install.md](https://github.com/aadilghani1/qc-use/blob/main/install.md).
 
-## Related tools
+## How qc-use compares
 
-| Tool | Use it to |
-| --- | --- |
-| **qc-use** | Prove that one critical path works, step by step, as a real persona. |
-| [jevqa](https://pypi.org/project/jevqa/) | Explore an app on its own and find bugs that you did not know about. |
-| [Browser Use qa-use](https://github.com/browser-use/qa-use) | Run QA with Browser Use agents in the cloud. |
-| [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) | Drive a browser with Jev. qc-use is built on it. |
+| | qc-use | [Browser Use qa-use](https://github.com/browser-use/qa-use) | [Browser Use `/qa` plugin](https://github.com/browser-use/plugins/tree/main/qa) |
+| --- | --- | --- | --- |
+| Where the browser runs | Your machine. Localhost works. | Browser Use Cloud | Browser Use Cloud, with a tunnel for localhost |
+| How a result is decided | Checks on a fresh page after each step, plus exact checks by code | The agent's own report at the end | The agent's own 1 to 5 score |
+| Secrets | Named in the test, typed by code, masked in every output | No secret store. Credentials go in the step text. | No secret store |
+| Where tests live | Markdown files in your repo | A database behind a web dashboard | Your prompt |
+| Schedules and alerts | Your CI: the GitHub Action, JUnit, and exit codes | Built-in schedules and email | None |
+| Setup | One prompt, or `uv tool install qc-use` | Docker Compose and a Browser Use key | A Claude Code or Codex plugin |
+
+Choose qa-use for a shared web dashboard of cloud-run suites. Choose qc-use to prove a critical path, step by step, on any machine and in CI.
+
+Related: [jevqa](https://pypi.org/project/jevqa/) explores an app on its own to find unknown bugs. [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) drives a browser with Jev. qc-use is built on it.
 
 ## Contribute
 
-We welcome issues and pull requests. Read [CONTRIBUTING.md](CONTRIBUTING.md) to start. The tests run offline and do not call any paid API.
+We welcome issues and pull requests. Read [CONTRIBUTING.md](https://github.com/aadilghani1/qc-use/blob/main/CONTRIBUTING.md) to start. The tests run offline and do not call any paid API.
 
 Good first contributions:
 
@@ -237,29 +278,12 @@ Good first contributions:
 - Add a test file for a common flow, such as sign up or checkout, to `examples/`.
 - Make an error message clearer.
 
+Report security problems privately. See [SECURITY.md](https://github.com/aadilghani1/qc-use/blob/main/SECURITY.md).
+
 ## Credits and license
 
-MIT license. See [LICENSE](LICENSE).
+MIT license. See [LICENSE](https://github.com/aadilghani1/qc-use/blob/main/LICENSE).
 
-The browser engine is adapted from [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) by [Browser Use](https://github.com/browser-use), also MIT. [NOTICE](NOTICE) lists the adapted files. qc-use uses [browser-harness](https://github.com/browser-use/browser-harness) to talk to Chrome, and [TypeSafe Jev](https://docs.typesafe.ai/introduction) through the [AI Gateway TypeSafe API](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe) to make every choice.
+The browser engine is adapted from [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) by [Browser Use](https://github.com/browser-use), also MIT. [NOTICE](https://github.com/aadilghani1/qc-use/blob/main/NOTICE) lists the adapted files. qc-use uses [browser-harness](https://github.com/browser-use/browser-harness) to talk to Chrome, and [TypeSafe Jev](https://docs.typesafe.ai/introduction) through the [AI Gateway TypeSafe API](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe) to make every choice.
 
 If qc-use helps you, please star the repo. It helps other people find it.
-
-### Visible browser and evidence
-
-`--headless` hides Chrome. `--watch` opens a separate live inspector, including when Chrome is headless.
-`qc-use demo --watch` shows both. `BROWSER=true` suppresses automatic inspector opening; use the printed local URL instead.
-The design preview on port 4318 uses synthetic data. Real runs print their own local URL.
-A missing image includes a reason. Opaque regions may be hidden to protect secrets.
-
-Use `mode: observe` for read-only steps and `action:` for specific required input.
-Exact text checks use viewport text; use `document contains X` for off-screen document text.
-`verify_timeout` sets the polling window without replaying input. An in-flight browser or model check can finish after this window.
-See [test files](docs/test-files.md) for manual authentication, repeatable accounts, ratings, cost evidence, and report schema version 2.
-
-Use explicit `action: Reload the page` and `action: Go back in browser history` requirements for persistence and navigation checks.
-Back uses Chrome's observed history entry. Both controls pass through the safety gate.
-Saved views show recorded step screenshots and checks. They are not a video or an interactive app session.
-
-The source hash in `qc-use --version` identifies the installed build. Refresh agent instructions after upgrading with `qc-use skill install`.
-See [the release process](CONTRIBUTING.md#releases) for versioned GitHub artifacts and pinned installs.

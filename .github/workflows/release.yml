@@ -7,20 +7,63 @@ permissions:
 jobs:
   checks:
     uses: ./.github/workflows/checks.yml
-  release:
+
+  build:
     needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Verify that every version matches the tag
+        run: |
+          uv run --locked python - <<'EOF'
+          import json, os, tomllib
+          from pathlib import Path
+          import qc_use
+          tag = os.environ["GITHUB_REF_NAME"]
+          versions = {
+              "pyproject.toml": tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"],
+              "qc_use/__init__.py": qc_use.__version__,
+              "plugin.json": json.loads(Path("plugins/qc-use/.claude-plugin/plugin.json").read_text())["version"],
+          }
+          wrong = {file: version for file, version in versions.items() if tag != "v" + version}
+          assert not wrong, f"{tag} does not match {wrong}"
+          EOF
+      - run: uv build
+      - run: uv run python tools/check_dist.py
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: dist
+          path: dist/
+
+  github:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
-      - name: Verify version matches tag
-        run: |
-          uv run --locked python -c 'import os,tomllib,qc_use; from pathlib import Path; v=tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]; assert os.environ["GITHUB_REF_NAME"] == "v"+v and qc_use.__version__ == v'
-      - run: uv build
-      - run: uv run python tools/check_dist.py
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: dist
+          path: dist/
       - name: Publish GitHub release assets
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: gh release create "$GITHUB_REF_NAME" dist/*.whl dist/*.tar.gz --verify-tag --generate-notes
+
+  # Trusted publishing: PyPI trusts this workflow and the pypi environment. No token is stored.
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/qc-use
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@v1.14.2

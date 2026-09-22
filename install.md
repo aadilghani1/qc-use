@@ -5,14 +5,26 @@ This guide is for people and for coding agents. Do the steps in order.
 ## What you need
 
 - **Chrome.** qc-use starts its own Chrome window with a new, empty profile. It does not touch your everyday Chrome profile.
-- **uv.** Install it from [docs.astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/). uv installs Python 3.12 for you.
+- **uv.** Install it from [docs.astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/). uv installs Python 3.12 for you. The installers below install uv when it is missing.
 - **A Vercel AI Gateway key.** Create one at [vercel.com/docs/ai-gateway](https://vercel.com/docs/ai-gateway). One key runs Jev and the text helper.
 
 ## 1. Install
 
+Choose one:
+
 ```bash
-uv tool install --python 3.12 --upgrade git+https://github.com/aadilghani1/qc-use
+# macOS or Linux: installs uv if needed, then qc-use and the skill
+curl -LsSf https://raw.githubusercontent.com/aadilghani1/qc-use/main/install.sh | sh
+
+# Windows PowerShell: the same
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/aadilghani1/qc-use/main/install.ps1 | iex"
+
+# With uv directly
+uv tool install --python 3.12 --upgrade qc-use
 ```
+
+To install a fixed version, use `qc-use==0.3.0`. To install the newest code on `main`, use `git+https://github.com/aadilghani1/qc-use`.
+With the installers, set `QC_USE_SOURCE` to one of these values.
 
 Check the install:
 
@@ -29,6 +41,11 @@ qc-use skill install
 This writes one `SKILL.md` file for each coding agent that it finds: Claude Code, Codex, Cursor, Gemini CLI, Copilot, and opencode. It always writes `~/.agents/skills/qc-use/SKILL.md`. Restart your agent after this step.
 
 To choose one agent, use `qc-use skill install --target claude`. To write the file to one exact place, use `--path`.
+
+You can also add only the skill. The skill installs the `qc-use` command the first time that your agent needs it:
+
+- Claude Code: `/plugin marketplace add aadilghani1/qc-use`, then `/plugin install qc-use@qc-use`.
+- Other agents: `npx skills add aadilghani1/qc-use`.
 
 ## 3. Add your key
 
@@ -116,7 +133,7 @@ The gateway key is used only for the exact HTTPS gateway host.
 uv tool uninstall qc-use
 ```
 
-Then delete the `SKILL.md` files that `qc-use skill install` listed.
+Then delete the `SKILL.md` files that `qc-use skill install` listed. For the Claude Code plugin, run `/plugin uninstall qc-use@qc-use`.
 
 Use `--headless` to hide Chrome. The `--watch` inspector is independent. Do not set `BROWSER=true` when automatic opening is wanted.
 

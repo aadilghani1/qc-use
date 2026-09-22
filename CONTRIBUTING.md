@@ -167,13 +167,14 @@ Design references: [Emil Kowalski](https://animations.dev/), [Shawn](https://www
 
 ## Releases
 
-Update the version in `pyproject.toml` and `qc_use/__init__.py`, then run `uv lock`.
+Update the version in `pyproject.toml`, `qc_use/__init__.py`, and `plugins/qc-use/.claude-plugin/plugin.json`, then run `uv lock`.
+Update the action version in the README and in `docs/ci.md`. A test fails when these versions disagree.
 Run all checks and review the installed wheel before tagging a release.
 
 ```bash
 uv build
 uv venv /tmp/qc-use-install
-uv pip install --python /tmp/qc-use-install/bin/python dist/qc_use-0.2.0-py3-none-any.whl
+uv pip install --python /tmp/qc-use-install/bin/python dist/qc_use-*.whl
 /tmp/qc-use-install/bin/python tools/check_install.py
 ```
 
@@ -181,7 +182,7 @@ CI checks installed wheels on Linux, macOS, and Windows. These checks cover CLI 
 The Chrome fixture runs on Linux. Maintainers also run the live model demo before engine changes ship.
 
 After review and merge, a maintainer pushes a `v<version>` tag matching the package version.
-The release workflow runs checks, then attaches the wheel and source archive to a GitHub release.
-It does not publish to PyPI. A failed check prevents publication.
-Install a known release with `uv tool install --python 3.12 git+https://github.com/aadilghani1/qc-use@v<version>`.
-Replace `<version>` with an existing release tag. Refresh installed instructions with `qc-use skill install` after upgrading.
+The release workflow runs the checks and builds once. Then it attaches the wheel and source archive to a GitHub release, and it publishes them to PyPI.
+PyPI publishing uses trusted publishing: PyPI trusts `release.yml` in the `pypi` environment, so no token is stored. A failed check prevents publication.
+Install a known release with `uv tool install --python 3.12 qc-use==<version>`, or use the action at `aadilghani1/qc-use@v<version>`.
+Refresh installed instructions with `qc-use skill install` after upgrading.

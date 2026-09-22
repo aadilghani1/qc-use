@@ -115,6 +115,8 @@ Update each doc that your change touches:
 | Safety behavior | `docs/safety.md` and README "Safety" |
 | Engine behavior | `docs/how-it-works.md` |
 | An adapted upstream file | `NOTICE` |
+| `qc_use/SKILL.md` | Copy it to `plugins/qc-use/skills/qc-use/SKILL.md`. A test checks that the copies match. |
+| A release version | `pyproject.toml`, `qc_use/__init__.py`, `plugin.json`, and the action version in README and `docs/ci.md` |
 
 A number in a doc (time, cost, or pass rate) comes from a run that you did. Say which run.
 

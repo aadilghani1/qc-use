@@ -22,6 +22,7 @@ This file defines the words in qc-use. The code, the docs, and the reports use t
 | **Provider** | The service that receives a model request and returns an answer. |
 | **Run** | One time that qc-use runs a test file. Each run uses a new, empty Chrome profile. |
 | **Report** | The result of a run: `report.md` for people and `report.json` for programs. |
+| **Skill** | The `SKILL.md` instructions that teach a coding agent to write, run, and explain qc-use tests. `qc-use skill install`, the Claude Code plugin, and `npx skills` install the same file. |
 | **Outcome** | The result of a step or a run: pass, fail, inconclusive, blocked, or needs approval. |
 
 ## Outcomes

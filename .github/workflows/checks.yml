@@ -71,3 +71,16 @@ jobs:
           fi
           uv pip install --python "$python" dist/*.whl
           "$python" tools/check_install.py
+      - name: Install with install.sh
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          QC_USE_SOURCE="$(ls "$PWD"/dist/*.whl)" sh install.sh
+          "$(uv tool dir --bin)/qc-use" --version
+      - name: Install with install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:QC_USE_SOURCE = (Get-ChildItem dist/*.whl).FullName
+          ./install.ps1
+          & (Join-Path (uv tool dir --bin).Trim() "qc-use.exe") --version

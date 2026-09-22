@@ -1,11 +1,12 @@
 [project]
 name = "qc-use"
-version = "0.2.0"
+version = "0.3.0"
 description = "Critical-path QA in plain words. Powered by TypeSafe Jev."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.12"
+authors = [{ name = "Aadil Ghani" }]
 dependencies = [
     "browser-harness==0.1.13",
     "httpx[http2]>=0.28,<1",
@@ -18,14 +19,22 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
   "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.12",
+  "Topic :: Internet :: WWW/HTTP :: Browsers",
   "Topic :: Software Development :: Quality Assurance",
   "Topic :: Software Development :: Testing",
 ]
 
 [project.urls]
 Homepage = "https://github.com/aadilghani1/qc-use"
+Documentation = "https://github.com/aadilghani1/qc-use/tree/main/docs"
+Source = "https://github.com/aadilghani1/qc-use"
 Issues = "https://github.com/aadilghani1/qc-use/issues"
+Releases = "https://github.com/aadilghani1/qc-use/releases"
 
 [project.scripts]
 qc-use = "qc_use.cli:main"

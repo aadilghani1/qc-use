@@ -1,6 +1,7 @@
 """First-run commands work offline and preserve user configuration."""
 
 import json
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
@@ -160,3 +161,27 @@ def test_per_user_chrome_on_windows_is_found(tmp_path, monkeypatch):
     monkeypatch.setattr(chrome.platform, "system", lambda: "Windows")
     monkeypatch.setattr(chrome.shutil, "which", lambda _: None)
     assert chrome.find_chrome() == str(installed)
+
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_plugin_ships_the_same_skill_as_the_package():
+    # A symlink would ship as a short text file on Windows checkouts, so the copy is checked byte for byte.
+    plugin = ROOT / "plugins/qc-use/skills/qc-use/SKILL.md"
+    assert plugin.read_bytes() == (ROOT / "qc_use/SKILL.md").read_bytes()
+
+
+def test_release_versions_agree():
+    import tomllib
+
+    import qc_use
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    plugin = json.loads((ROOT / "plugins/qc-use/.claude-plugin/plugin.json").read_text(encoding="utf-8"))
+    market = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
+    assert project == qc_use.__version__ == plugin["version"]
+    assert [(p["name"], (ROOT / p["source"]).is_dir()) for p in market["plugins"]] == [("qc-use", True)]
+    for doc in ("README.md", "docs/ci.md"):
+        refs = set(re.findall(r"aadilghani1/qc-use@v([\w.]+)", (ROOT / doc).read_text(encoding="utf-8")))
+        assert refs == {project}, doc
