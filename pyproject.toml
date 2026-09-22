@@ -41,7 +41,7 @@ exclude = ["qc_use/**/AGENTS.md", "qc_use/**/CLAUDE.md"]
 [dependency-groups]
 dev = [
     "pre-commit>=4,<5",
-    "pytest>=8.4,<9",
+    "pytest>=8.4,<10",
     "ruff>=0.14,<1",
 ]
 
