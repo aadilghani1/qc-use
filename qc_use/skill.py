@@ -29,7 +29,7 @@ def install(targets=None, path=None):
         names = targets or [name for name, (folder, _) in places.items() if name == "agents" or folder.is_dir()]
         unknown = [name for name in names if name not in places]
         if unknown:
-            raise SystemExit(f"Unknown agent: {', '.join(unknown)}. Choose from {', '.join(TARGETS)} or all.")
+            raise ValueError(f"Unknown agent: {', '.join(unknown)}. Choose from {', '.join(TARGETS)} or all.")
         destinations = [(name, places[name][1]) for name in names]
     lines = []
     for name, destination in destinations:

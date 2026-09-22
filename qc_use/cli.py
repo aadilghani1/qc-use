@@ -91,13 +91,19 @@ def demo_command(args):
 
 
 def skill_command(args):
+    from .report import SETUP_ERROR
     from .skill import TARGETS, install, text
 
     if args.action == "print":
         print(text(), end="")
         return 0
     targets = list(TARGETS) if args.target == "all" else [args.target] if args.target else None
-    for line in install(targets=targets, path=args.path):
+    try:
+        lines = install(targets=targets, path=args.path)
+    except ValueError as error:
+        print(f"qc-use: {error}", file=sys.stderr)
+        return SETUP_ERROR
+    for line in lines:
         print(line)
     return 0
 
@@ -164,10 +170,12 @@ def parser():
 
 
 def main(argv=None):
+    from .report import SETUP_ERROR
+
     args = parser().parse_args(argv)
     if getattr(args, "repeat", 1) < 1:
         print("qc-use: --repeat must be at least 1", file=sys.stderr)
-        return 4
+        return SETUP_ERROR
     try:
         return args.handler(args)
     except KeyboardInterrupt:

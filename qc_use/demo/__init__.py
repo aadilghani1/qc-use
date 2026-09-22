@@ -5,6 +5,7 @@ import sys
 import time
 from pathlib import Path
 
+from ..report import SETUP_ERROR
 from .app import EMAIL, PASSWORD, serve
 
 TESTS = Path(__file__).with_name("tests")
@@ -29,7 +30,7 @@ def main(port=3100, serve_only=False, headless=False):
     try:
         if port != 3100:
             print("The bundled tests use port 3100. Use `qc-use demo --serve --port N` for other ports.")
-            return 4
+            return SETUP_ERROR
         codes = {name: cli(["run", str(TESTS / name), *(["--headless"] if headless else [])]) for name in EXPECTED}
         if codes == EXPECTED:
             print("qc-use works. You saw a pass, a real bug that qc-use caught, and a risky action that stopped.")
