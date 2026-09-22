@@ -124,3 +124,13 @@ Manual authentication requires visible Chrome, a dedicated `--profile`, and an i
 Only the user handles email codes or OAuth. Automated steps start after the handoff and still enforce allowed sites.
 Repeated runs require `repeat_safe: true`. This does not reset server accounts or authorize production signup or account deletion.
 Secret templates expand only explicitly named values. Their expanded values use the same redaction path.
+
+## Provider outages
+
+Preflight validates Jev before Chrome starts. It does not guarantee availability during the run.
+Transient failures retry model requests only, within one 45-second deadline and the run's request limit.
+Browser input never repeats as part of provider recovery. A recovered decision must still pass page-freshness checks.
+After a deadline expires, qc-use stops model requests and saves the run evidence. An in-flight request may still incur provider charges.
+Inspect account state before rerunning. Preflight cannot make signup or billing safe to repeat.
+
+Connection failures before sending can retry. Lost responses or partial writes stop immediately with unknown pricing.

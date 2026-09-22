@@ -40,13 +40,15 @@ def page_state(page, limit=6000):
     return {"url": page["url"], "title": page["title"], "text": page["text"][:limit], "fields": fields[:80]}
 
 
-def ask(state, questions):
+def ask(state, questions, *, purpose="judge"):
     url, keys, model = jev_endpoint()
     key = credential(keys)
     if not key:
         raise ValueError(f"Jev needs {' or '.join(keys)}.")
     started = time.perf_counter()
-    result = jev_response(post_json(url, key, {"model": model, "state": state, "questions": questions}))
+    result = jev_response(
+        post_json(url, key, {"model": model, "state": state, "questions": questions}, purpose=purpose)
+    )
     return result.get("answers", {}), round((time.perf_counter() - started) * 1000)
 
 
@@ -55,6 +57,22 @@ def probability(answers, name):
         return NoulAnswer.model_validate(answers.get(name)).noul
     except ValidationError:
         raise ValueError(f"Invalid TypeSafe answer for {name}.") from None
+
+
+def preflight():
+    """Validate a tiny Jev answer before launching Chrome."""
+    answers, _ = ask(
+        {},
+        {
+            "ready": {
+                "type": "noul",
+                "instructions": {"statement": "One equals one."},
+                "criteria": {"true": "1 = 1", "false": "1 does not equal 1"},
+            }
+        },
+        purpose="preflight",
+    )
+    probability(answers, "ready")
 
 
 def expectations(page, goal, statements, history=(), action_statement=None, action_statements=()):
@@ -163,7 +181,7 @@ def ratings(summary, rates, issues=None):
         }
         for name, rating in rates.items()
     }
-    answers, _ = ask(summary, questions)
+    answers, _ = ask(summary, questions, purpose="ratings")
     results = {}
     for name, rating in rates.items():
         raw = answers.get(name)

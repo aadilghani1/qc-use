@@ -20,6 +20,7 @@ from .report import (
     Cost,
     Dialog,
     GeneratedValue,
+    ProviderIssue,
     RatingResult,
     Report,
     Signal,
@@ -284,6 +285,7 @@ def run(
     rating_issues: dict[str, dict] = {}
     cleanup_errors: list[str] = []
     try:
+        judge.preflight()
         chrome = Chrome(profile=profile, headless=headless)
         connect(chrome)
         from .engine.browser import Browser
@@ -329,7 +331,7 @@ def run(
                 safe_echo(f"  Ratings unavailable: {error}")
                 rating_issues.update({name: {"reason": str(error)} for name in spec.rate})
             missing_required = any(spec.rate[name].min is not None for name in rating_issues)
-            if missing_required and all(r.outcome == "pass" for r in results):
+            if missing_required and not meter.unavailable and all(r.outcome == "pass" for r in results):
                 results[-1].outcome = "inconclusive"
                 results[-1].reason = "A required rating could not be checked."
     except (RuntimeError, ValueError, TimeoutError, OSError, KeyboardInterrupt) as error:
@@ -357,6 +359,8 @@ def run(
         if results and all(r.outcome == "pass" for r in results):
             results[-1].outcome, results[-1].reason = "blocked", "Browser cleanup failed: " + "; ".join(cleanup_errors)
     outcome, summary = summarize(results, ratings)
+    if meter.unavailable and outcome == "pass":
+        outcome, summary = "blocked", str(meter.unavailable)
     route = "Vercel AI Gateway" if jev_url.startswith(model.GATEWAY) else jev_url.split("/")[2]
     report = Report(
         run_id=run_id,
@@ -369,6 +373,7 @@ def run(
         steps=results,
         ratings=ratings,
         rating_issues=rating_issues,
+        provider_issue=ProviderIssue(reason=str(meter.unavailable)) if meter.unavailable else None,
         approval=approval,
         cost=Cost(
             usd=meter.usd,

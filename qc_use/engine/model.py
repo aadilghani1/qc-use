@@ -4,14 +4,14 @@ import json
 import math
 import os
 import time
-from datetime import UTC, datetime
-from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
 
 import httpx
 from pydantic import ValidationError
 
+from . import requests
 from .answers import ChoiceAnswer, NoulAnswer, ScoreAnswer, TextValue, jev_response, validate_choice
+from .errors import ProviderUnavailable
 from .questions import NEXT_ACTION, TARGET, TEXT_VALUE
 
 __all__ = ["ChoiceAnswer", "NoulAnswer", "ScoreAnswer", "TextValue", "jev_response", "validate_choice"]
@@ -51,10 +51,13 @@ class Meter:
     def __init__(self, limit=None, max_calls=200):
         self.limit, self.usd, self.calls, self.estimated, self.unpriced = limit, 0.0, 0, False, 0
         self.max_calls = max_calls
+        self.unavailable: ProviderUnavailable | None = None
         self.requests: list[dict] = []
         self.pricing: list[dict] = []
 
     def check(self):
+        if self.unavailable:
+            raise self.unavailable
         if len(self.requests) >= self.max_calls:
             raise BudgetExceeded("Model request count reached its cap; no request sent.")
         if self.limit is not None and self.unpriced:
@@ -91,77 +94,28 @@ def configure(redact=None, meter=None):
     HOOKS.update(redact=redact, meter=meter)
 
 
-def error_detail(response):
-    try:
-        body = response.json()
-        message = body.get("message") or body["error"]["message"]
-    except (ValueError, KeyError, TypeError, AttributeError):
-        return ""
-    return f" ({str(message)[:200]})"
-
-
-def retry_delay(response, attempt):
-    """Respect Retry-After within a ten-second maximum wait."""
-    value = response.headers.get("Retry-After") if response is not None else None
-    if value:
-        try:
-            seconds = float(value)
-        except (ValueError, TypeError):
-            try:
-                seconds = (parsedate_to_datetime(value) - datetime.now(UTC)).total_seconds()
-            except (ValueError, TypeError, OverflowError):
-                seconds = 0.5 * 2**attempt
-        if math.isfinite(seconds):
-            return max(0, min(seconds, 10))
-    return 0.5 * 2**attempt
-
-
-def post_json(url: str, key: str, body: dict) -> dict:
-    """Retry only model requests and preserve attempt and pricing evidence."""
+def post_json(url: str, key: str, body: dict, *, purpose="model") -> dict:
+    """Redact, bound, and meter every model request through one shared path."""
     redact, meter = HOOKS["redact"], HOOKS["meter"]
     if redact:
         body = redact(body)
-    for attempt in range(3):
+    try:
+        response, record = requests.send(CLIENT, url, key, body, meter, redact, purpose)
+    except ProviderUnavailable as error:
         if meter:
-            meter.check()
-        record = {"attempt": attempt + 1, "provider": urlparse(url).hostname, "status": None, "retry_seconds": 0.0}
+            meter.unavailable = error
+        raise
+    try:
+        result = response.json()
+        if not isinstance(result, dict):
+            raise ValueError
         if meter:
-            meter.requests.append(record)
-        started = time.perf_counter()
-        response = None
-        try:
-            response = CLIENT.post(url, json=body, headers={"Authorization": f"Bearer {key}"})
-            record["status"] = response.status_code
-        except httpx.HTTPError:
-            record["status"] = "transport_error"
-            if attempt == 2:
-                raise RuntimeError("Model connection failed after 3 attempts; no action executed.") from None
-        finally:
-            record["elapsed_ms"] = round((time.perf_counter() - started) * 1000)
-        if (response is None or response.status_code in {429, 529, 503}) and attempt < 2:
-            delay = retry_delay(response, attempt)
-            record["retry_seconds"] = delay
-            time.sleep(delay)
-            continue
-        if response is None:
-            raise RuntimeError("Model connection failed; no action executed.")
-        if response.is_error:
-            raise RuntimeError(
-                f"Model provider returned HTTP {response.status_code}{error_detail(response)} "
-                f"after {attempt + 1} attempt(s); no action executed."
-            )
-        try:
-            result = response.json()
-            if not isinstance(result, dict):
-                raise ValueError
-            if meter:
-                meter.charge(result, direct_jev=url == JEV_PROVIDERS["typesafe"][0])
-                record["pricing"] = meter.pricing[-1]
-                record["usage"] = result.get("usage", {})
-        except (ValueError, TypeError, AttributeError):
-            raise ValueError("Invalid model response; no action executed.") from None
-        return result
-    raise RuntimeError("Model unavailable")
+            meter.charge(result, direct_jev=url == JEV_PROVIDERS["typesafe"][0])
+            record["pricing"] = meter.pricing[-1]
+            record["usage"] = result.get("usage", {})
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("Invalid model response; no action executed.") from None
+    return result
 
 
 def action_space(actions, secrets=(), files=()):
@@ -283,7 +237,7 @@ def choose(state, goal, history, secrets=(), files=(), done_when=()):
         "questions": questions,
     }
     started = time.perf_counter()
-    result = jev_response(post_json(url, key, body))
+    result = jev_response(post_json(url, key, body, purpose="action"))
     operation_answer = validate_choice(result["answers"].get("operation", {}), operations)
     done_probability = None
     if done_when:
@@ -386,6 +340,7 @@ def field_text(context):
                 },
             ],
         },
+        purpose="text_helper",
     )
     try:
         output = TextValue.model_validate_json(result["choices"][0]["message"]["content"])

@@ -154,6 +154,7 @@ def test_public_dev_suffix_is_not_a_staging_signal():
 
 @pytest.fixture
 def fake_run(monkeypatch):
+    monkeypatch.setattr(judge, "preflight", Mock())
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "fake")
     monkeypatch.setattr(runner, "Chrome", Mock())
     monkeypatch.setattr(runner, "connect", Mock())
@@ -402,3 +403,36 @@ def test_private_browser_activates_its_capture_surface(monkeypatch):
     instance = browser.Browser("http://localhost:3000")
     assert instance.target == "owned"
     assert calls.call_args_list[0].kwargs == {"url": "about:blank", "background": False}
+
+
+def test_midrun_outage_keeps_passed_steps_and_stops_requests(spec, fake_run, tmp_path, monkeypatch):
+    import httpx
+
+    spec.steps.append(Step(text="Continue", expect=["Dashboard"]))
+    spec.rate = {"ease": Rating(levels=["bad", "good"])}
+    responses = Mock(return_value=httpx.Response(503, headers={"Retry-After": "120"}))
+    monkeypatch.setattr(model.CLIENT, "post", responses)
+    original = runner.run_step
+
+    def step(*args, **kwargs):
+        if args[1] == 0:
+            return original(*args, **kwargs)
+        model.post_json("https://example.test", "key", {}, purpose="action")
+
+    monkeypatch.setattr(runner, "run_step", step)
+    report = runner.run(spec, results_dir=tmp_path, screenshots=False, echo=lambda *_: None)
+    assert [s.outcome for s in report.steps] == ["pass", "blocked"]
+    assert report.provider_issue.kind == "provider_unavailable"
+    assert responses.call_count == 1
+
+
+def test_required_rating_outage_preserves_completed_steps(spec, fake_run, tmp_path, monkeypatch):
+    import httpx
+
+    spec.rate = {"ease": Rating(levels=["bad", "good"], min="good")}
+    post = Mock(return_value=httpx.Response(503, headers={"Retry-After": "120"}))
+    monkeypatch.setattr(model.CLIENT, "post", post)
+    report = runner.run(spec, results_dir=tmp_path, screenshots=False, echo=lambda *_: None)
+    assert report.steps[0].outcome == "pass"
+    assert report.outcome == "blocked" and report.provider_issue.kind == "provider_unavailable"
+    assert "ease" in report.rating_issues and post.call_count == 1

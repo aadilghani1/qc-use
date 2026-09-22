@@ -72,7 +72,9 @@ The live view is read-only. A missing image means masking could not be checked.
 Use `qc-use demo --watch` for visible Chrome and its inspector. Add `--headless` only when the user wants Chrome hidden.
 Viewport text is capped at 6,000 characters. Document text is capped at 20,000 characters.
 Use `verify_timeout` for slow result transitions. In-flight checks may finish after this polling window.
-`max_model_calls` defaults to 200 HTTP attempts, including retries. Never lower pass thresholds merely to pass a test.
+`max_model_calls` defaults to 200 HTTP attempts, including retries and preflight.
+Preflight validates Jev before Chrome starts. Provider retries have a 45-second deadline; they never repeat browser input.
+If `provider_issue.kind` is `provider_unavailable`, report the outage separately from app bugs. Inspect account state before rerunning. Never lower pass thresholds merely to pass a test.
 `--repeat` requires `repeat_safe: true` and equivalent server-side fixtures. It does not reset accounts.
 For OTP or OAuth, use a dedicated `--profile` with `--manual-auth` in an interactive terminal.
 This handoff tests the authenticated continuation, not automated login. Never create more production accounts to work around authentication.

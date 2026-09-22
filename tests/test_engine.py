@@ -128,7 +128,7 @@ def test_uploads_are_offered_only_for_declared_files():
 def test_secret_values_never_appear_in_the_decision_request(monkeypatch):
     sent = []
 
-    def post(_url, _key, body):
+    def post(_url, _key, body, **kwargs):
         sent.append(json.dumps(body))
         return {
             "model": "test",
@@ -148,7 +148,7 @@ def test_secret_values_never_appear_in_the_decision_request(monkeypatch):
 def test_all_heads_are_one_request_and_only_matching_head_executes(monkeypatch):
     calls = []
 
-    def post(_url, _key, body):
+    def post(_url, _key, body, **kwargs):
         calls.append(body)
         return {
             "model": "test",
@@ -169,7 +169,7 @@ def test_all_heads_are_one_request_and_only_matching_head_executes(monkeypatch):
 
 
 def test_click_cannot_consume_a_text_target(monkeypatch):
-    def post(_url, _key, body):
+    def post(_url, _key, body, **kwargs):
         return {
             "model": "test",
             "answers": {
@@ -188,7 +188,7 @@ def test_click_cannot_consume_a_text_target(monkeypatch):
 def test_gateway_is_the_default_jev_route(monkeypatch):
     calls = []
 
-    def post(url, key, body):
+    def post(url, key, body, **kwargs):
         calls.append((url, key, body["model"]))
         return {
             "model": body["model"],
@@ -223,7 +223,7 @@ def test_every_request_is_redacted_and_metered(monkeypatch):
         def json(self):
             return {"usage": {"cost": 0.002}}
 
-    def send(_url, json, headers):
+    def send(_url, json, headers, **kwargs):
         seen["body"] = json
         return Response()
 
@@ -494,7 +494,7 @@ def test_fingerprint_tracks_values_and_identity_not_screenshots():
 def test_step_done_does_not_override_the_chosen_action(monkeypatch):
     sent = []
 
-    def post(_url, _key, body):
+    def post(_url, _key, body, **kwargs):
         sent.append(body)
         return {
             "model": "test",
@@ -536,3 +536,42 @@ def test_preexisting_checkpoint_does_not_skip_requested_action():
     a.act()
     check.assert_not_called()
     a.browser.act.assert_called_once()
+
+
+def test_recovered_model_decision_still_rejects_a_changed_page(monkeypatch):
+    import httpx
+
+    from qc_use.engine import browser, requests
+
+    b = browser.Browser.__new__(browser.Browser)
+    b.fresh = Mock(return_value=True)
+    operation = Mock()
+    monkeypatch.setattr(browser, "browser_operation", operation)
+    monkeypatch.setenv("AI_GATEWAY_API_KEY", "key")
+    monkeypatch.setattr(requests.time, "sleep", Mock())
+    attempts = []
+
+    def post(url, json, **kwargs):
+        attempts.append(url)
+        if len(attempts) == 1:
+            return httpx.Response(503)
+        b.fresh.return_value = False
+        return httpx.Response(
+            200,
+            json={
+                "model": "fixture",
+                "answers": {
+                    "operation": choice(json["questions"]["operation"]["criteria"], "CLICK"),
+                    "click_target": choice(json["questions"]["click_target"]["criteria"], "2"),
+                },
+            },
+        )
+
+    monkeypatch.setattr(model.CLIENT, "post", post)
+    current = page()
+    selected = model.choose(current, "Click Go", [])
+    action = next(a for a in current["actions"] if a["id"] == selected["choice"])
+    with pytest.raises(StalePage):
+        b.act(action, current)
+    assert len(attempts) == 2
+    operation.assert_not_called()

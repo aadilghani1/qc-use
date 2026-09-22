@@ -15,3 +15,7 @@ class NeedsApproval(Exception):
     def __init__(self, rule, action, probability):
         super().__init__(f"'{action}' may break the rule 'never {rule}' ({probability:.0%}).")
         self.rule, self.action, self.probability = rule, action, probability
+
+
+class ProviderUnavailable(RuntimeError):
+    """Transient provider failures exhausted the request's retry deadline."""

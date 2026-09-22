@@ -10,6 +10,7 @@ Files adapted from jev-ultrafast, with changes:
   qc_use/engine/agent.py      (from jev_ultrafast/agent.py)
   qc_use/engine/browser.py    (from jev_ultrafast/browser.py; activates the private capture tab)
   qc_use/engine/model.py      (from jev_ultrafast/model.py)
+  qc_use/engine/requests.py   (request handling extracted from adapted model.py; bounded retries and diagnostics)
   qc_use/engine/answers.py    (validation extracted from the adapted model.py)
   qc_use/engine/questions.py  (from jev_ultrafast/questions.py)
   qc_use/engine/snapshot.js   (from jev_ultrafast/snapshot.js; adds bounded document-text evidence)

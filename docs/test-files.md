@@ -244,9 +244,22 @@ These are model judgments, not user research or measured conversion intent.
 
 The report preserves numeric cost precision and lists provider, estimated, reported-zero, and unavailable pricing evidence.
 `trace.json` records model attempts, status, retry delay, timing, token usage, and cost evidence.
-HTTP 429, 503, 529, and transport failures get at most three attempts. Retry-After waits are capped at ten seconds.
+HTTP 429, 502, 503, 504, 529, and connection failures retry within a 45-second deadline per model request.
+Backoff increases from 0.5 to eight seconds with jitter. `Retry-After` takes precedence.
+If the requested wait exceeds the remaining deadline, qc-use stops instead of retrying early.
+`max_model_calls` counts every attempt, including preflight. Model retries never repeat browser input.
+A stalled request can continue at the provider after qc-use stops waiting. Its price remains unknown; its answer cannot cause input.
+
+Before Chrome starts, preflight asks Jev a small question and validates the answer. It uses the configured provider and counts toward limits.
+Preflight checks current availability. It cannot guarantee that later calls succeed, and its cost is not assumed to be zero.
+After the retry deadline, the run stops further model requests, including ratings.
+`provider_issue.kind` is `provider_unavailable`; the run remains blocked with exit code 2 unless application evidence determines another outcome.
+The report preserves completed steps, actions, and screenshots. Do not rerun a signup without checking existing account state.
+Trace records include purpose, HTTP status, available provider error fields, and request IDs. Credentials and declared secrets are redacted.
 Retries never replay browser actions. The request cap remains active when reported cost is zero.
 The spend cap uses provider-reported or estimated cost; it is not a prepaid ceiling or proof of eventual billing.
 
 Reports use `qc-use.report/2`. Checks distinguish `action`, `expect`, `implicit`, `check`, and `signal` evidence.
 `models.build` is a hash of installed runtime source, so equal package versions can still be distinguished.
+
+Connection failures before sending can retry. Lost responses or partial writes stop immediately with unknown pricing.

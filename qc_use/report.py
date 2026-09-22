@@ -126,6 +126,13 @@ class Cost(ReportModel):
     pricing: list[dict] = []
 
 
+class ProviderIssue(ReportModel):
+    """Distinguish unavailable model evidence from an application failure."""
+
+    kind: Literal["provider_unavailable"] = "provider_unavailable"
+    reason: str
+
+
 class Report(ReportModel):
     schema_version: str = SCHEMA
     run_id: str
@@ -138,6 +145,7 @@ class Report(ReportModel):
     steps: list[StepResult]
     ratings: list[RatingResult] = []
     rating_issues: dict[str, dict] = {}
+    provider_issue: ProviderIssue | None = None
     approval: Approval | None = None
     cost: Cost
     models: dict[str, str]
@@ -162,6 +170,8 @@ def markdown(report):
         f"{report.cost.model_calls} model calls · run `{report.run_id}`",
         "",
     ]
+    if report.provider_issue:
+        lines += [report.provider_issue.reason, ""]
     if report.approval:
         a = report.approval
         lines += [

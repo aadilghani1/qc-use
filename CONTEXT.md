@@ -44,3 +44,7 @@ This file defines the words in qc-use. The code, the docs, and the reports use t
 - **Coverage**: completed steps compared with all planned steps.
 - **Manual authentication**: the user signs in inside a dedicated test profile before the automated steps start.
 - **Secret template**: an explicitly declared secret whose `{tag}` placeholder expands once for each run.
+
+- **Provider unavailable**: transient model failures exhausted the retry deadline. The run stops without more model requests.
+- **Preflight**: a small, validated Jev question before Chrome starts. It checks current availability, not future availability.
+- **Retry deadline**: the total time allowed for one model request, including attempts and waits.

@@ -9,7 +9,7 @@ qc-use has two layers:
 
 1. `qc-use run` reads the test file and checks it (`spec.py`).
 2. qc-use checks the URL, the secrets, and the key. If something is wrong, it stops with exit code 4.
-3. qc-use starts Chrome with a new, empty profile (`chrome.py`). Its test tab is active so screenshots render in headless Chrome.
+3. A small, validated Jev preflight checks current provider availability. Then qc-use starts Chrome with a new, empty profile (`chrome.py`). Its test tab is active so screenshots render in headless Chrome.
 4. For each step, the engine runs until Jev says that the step is done, or until the step cannot continue (`engine/agent.py`).
 5. qc-use checks the step on a fresh read of the page (`runner.py`, `judge.py`).
 6. qc-use writes the report (`report.py`) and closes Chrome.
@@ -70,3 +70,11 @@ Capture hides opaque content before taking fresh pixels, then masks known secret
 It checks page stability and removes the temporary stylesheet. Changed pages return a withholding reason.
 Model attempts, retry delays, and pricing evidence are recorded. Model retries never repeat browser input.
 Ratings use observed content and check results, and label incomplete coverage.
+
+## Provider failures
+
+`engine/model.py` remains the redaction and metering entry point for every request.
+`engine/requests.py` handles bounded transport attempts and diagnostic fields. It imports nothing from the QA layer.
+A request worker sends only one HTTP request. The caller limits its wait to the remaining retry deadline.
+A late response cannot run input or change metering. Unknown pricing is recorded when an in-flight request exceeds the deadline.
+The run stops further model requests after provider unavailability. Existing page-freshness checks still guard recovered decisions.
