@@ -8,10 +8,11 @@ Before you edit anything in `qc_use/engine/`, read [qc_use/engine/AGENTS.md](qc_
 
 ## Done means
 
-A change is done when all four checks pass:
+A change is done when all five checks pass. CI runs the same commands, and the pre-commit hooks run the first two on each commit.
 
 ```bash
 uv run ruff check .
+uv run ruff format --check .
 uv run pytest
 node --check qc_use/engine/snapshot.js
 uv build
@@ -86,7 +87,7 @@ Library code raises. `cli.py` turns errors into exit codes with `report.EXIT_COD
 - Write one-line comments that say why. The code says what.
 - Types live in the pydantic models. Helpers stay plain, like the engine.
 - Use names from `CONTEXT.md`: step, expectation, exact check, secret, gate, signal, outcome.
-- ruff (`E`, `F`, `I`) at 120 columns, `pathlib` for paths, f-strings for text.
+- ruff format and ruff check at 120 columns (the rule sets are in `pyproject.toml`), `pathlib` for paths, f-strings for text.
 - Add a dependency only when the standard library and the current dependencies cannot do the job, and say why in the pull request. The current dependencies are `browser-harness` (pinned), `httpx`, `pydantic`, `pyyaml`, and `pillow`.
 - `watch.html` is one file with no build step. Escape every dynamic value with `esc()`.
 
@@ -117,4 +118,4 @@ A number in a doc (time, cost, or pass rate) comes from a run that you did. Say 
 
 ## Git
 
-Commit only when the user asks. Write the subject in the imperative, in 72 characters or fewer. In the body, list what changed and how you checked it. Keep `.env`, `qa/.env`, and `qa-results/` out of git.
+Commit only when the user asks. When you commit, follow [Commits](CONTRIBUTING.md#commits): Conventional Commits, one logical change per commit, and every check passing at each commit. Keep the subject to 72 characters or fewer. In the body, say why and how you checked it. Keep `.env`, `qa/.env`, and `qa-results/` out of git.
