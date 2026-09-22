@@ -118,4 +118,24 @@ A number in a doc (time, cost, or pass rate) comes from a run that you did. Say 
 
 ## Git
 
-Commit only when the user asks. When you commit, follow [Commits](CONTRIBUTING.md#commits): Conventional Commits, one logical change per commit, and every check passing at each commit. Keep the subject to 72 characters or fewer. In the body, say why and how you checked it. Keep `.env`, `qa/.env`, and `qa-results/` out of git.
+Follow [Branches and forks](CONTRIBUTING.md#branches-and-forks) and [Commits](CONTRIBUTING.md#commits).
+
+- Create a task branch before edits. Agents may create local branches for authorized work without another approval.
+- Use `<type>/<short-description>`: `fix/step-completion`, `feat/report-export`, or `docs/contribution-workflow`.
+- Use lowercase words separated by hyphens. Name the change, not the tool, model, person, or session.
+- Do not use `codex/`, `claude/`, `agent/`, random suffixes, or temporary names such as `patch-1`.
+- Start new work from current `main`. Continue an existing task on its existing branch.
+- Inspect the working tree first. Preserve unrelated changes; never reset, stash, or move them without authorization.
+- Use a separate worktree when isolation is needed. Do not commit directly to `main`.
+- Commit, push, open a PR, or merge only when the user authorizes that action. Honor authorization already given for the task.
+- Use a fork for contributors without upstream write access. Verify remote URLs before pushing; never assume `origin` is upstream.
+- Keep each branch and PR focused on one change. Run required checks and review the final diff before publishing.
+- Use Conventional Commits with subjects of 72 characters or fewer. Explain why and how you checked the change.
+- Use the configured contributor identity. Do not invent an author or change Git identity settings.
+- Do not add agent co-author trailers, generated-by footers, badges, or signatures to commits or PRs.
+- Do not add `Co-authored-by: Claude`, `Co-authored-by: Codex`, or equivalent tool attribution.
+- Preserve genuine human credit and required upstream copyright, license, and attribution notices.
+- Never force-push shared branches. Use `--force-with-lease` only for an explicitly authorized rewrite of the task branch.
+- Merge only with passing required checks and no unresolved blockers. Keep incomplete work in a draft PR.
+- After an authorized merge, update local `main` with a fast-forward. Delete only merged task branches when cleanup is authorized.
+- Keep `.env`, `qa/.env`, and `qa-results/` out of Git.

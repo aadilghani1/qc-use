@@ -15,6 +15,61 @@ uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
 
 The hooks run on each commit. They fix lint and formatting with ruff, check whitespace and config files, stop private keys, and check your commit message.
 
+## Branches and forks
+
+Use one branch for one change. Keep `main` ready to release.
+Name branches `<type>/<short-description>`, using lowercase words and hyphens.
+Use the commit types below, such as `fix/step-completion`, `feat/report-export`, or `docs/contribution-workflow`.
+Do not include agent names, personal names, session identifiers, random suffixes, or names such as `patch-1`.
+
+Check `git status` before switching branches. Preserve unrelated work.
+For a clean checkout with upstream write access:
+
+```bash
+git remote -v
+git fetch origin
+git switch main
+git merge --ff-only origin/main
+git switch -c fix/step-completion
+```
+
+These commands assume `origin` points to `aadilghani1/qc-use`. Verify that first.
+Continue an existing task on its existing branch. Use a separate worktree when another task needs an isolated checkout.
+Agents may create local branches for authorized work. Creating a branch does not authorize publishing or merging.
+
+### Contribute from a fork
+
+Without upstream write access, fork `aadilghani1/qc-use` on GitHub and clone your fork.
+Agents must have user authorization before creating a remote fork or publishing changes.
+Set `origin` to your fork and `upstream` to this project:
+
+```bash
+git remote -v
+git remote add upstream https://github.com/aadilghani1/qc-use.git
+git fetch upstream
+git switch -c fix/step-completion upstream/main
+```
+
+Add `upstream` only if it is absent. Check its URL if it already exists.
+After committing and checking the change, push your task branch:
+
+```bash
+git push -u origin fix/step-completion
+```
+
+Open a PR from your fork's task branch to `aadilghani1/qc-use:main`.
+Maintainers with write access use the same branch and PR process within this repository.
+Do not push directly to `main`.
+
+### Keep branches clean
+
+Review the final diff and run the required checks before pushing.
+Keep unrelated edits, secrets, generated results, and dependency folders out of commits.
+Resolve review findings and wait for required CI checks before merging. Use draft PRs for incomplete work.
+Do not force-push shared branches. Use `--force-with-lease` only when a task-branch rewrite is explicitly authorized.
+After merging, update local `main` with a fast-forward. Delete merged task branches when cleanup is authorized.
+Do not delete unmerged branches or rewrite unrelated history.
+
 ## Check your change
 
 [AGENTS.md](AGENTS.md) holds the code map, the rules, the patterns, and the checks. They apply to people and to coding agents. Its "Done means" section lists the commands to run before a pull request. CI runs the same commands.
@@ -67,6 +122,13 @@ docs: explain exact checks in the README
 ```
 
 Make each commit atomic: one logical change, and all checks pass at that commit. Put mechanical formatting in its own `style` commit, and add its hash to `.git-blame-ignore-revs`.
+
+### Authorship
+
+Use your configured contributor identity. Agents must not invent an author or change Git identity settings.
+Do not add agent co-author trailers, generated-by footers, badges, or signatures to commits or PRs.
+This includes `Co-authored-by: Claude`, `Co-authored-by: Codex`, and equivalent tool attribution.
+Preserve genuine human credit and required upstream copyright, license, and attribution notices.
 
 ## Pull requests
 
