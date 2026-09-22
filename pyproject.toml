@@ -39,7 +39,11 @@ packages = ["qc_use"]
 exclude = ["qc_use/**/AGENTS.md", "qc_use/**/CLAUDE.md"]
 
 [dependency-groups]
-dev = ["pytest>=8.4,<9", "ruff>=0.14,<1"]
+dev = [
+    "pre-commit>=4,<5",
+    "pytest>=8.4,<9",
+    "ruff>=0.14,<1",
+]
 
 [tool.ruff]
 line-length = 120
