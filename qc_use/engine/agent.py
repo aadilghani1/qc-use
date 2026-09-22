@@ -20,8 +20,20 @@ class Policy:
 
 
 class Agent:
-    def __init__(self, browser, goal, *, page, history, max_actions=15, secrets=None, files=None, policy=None,
-                 screenshots=False, done_when=()):
+    def __init__(
+        self,
+        browser,
+        goal,
+        *,
+        page,
+        history,
+        max_actions=15,
+        secrets=None,
+        files=None,
+        policy=None,
+        screenshots=False,
+        done_when=(),
+    ):
         self.browser = browser
         self.done_when = tuple(done_when)
         self.secrets = secrets or {}  # name -> value. Values are typed by code and never sent to a model.

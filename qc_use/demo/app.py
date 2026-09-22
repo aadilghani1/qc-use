@@ -48,11 +48,14 @@ def page(title, body, user=None):
 
 def login(error=""):
     note = f'<div class="error" role="alert">{html.escape(error)}</div>' if error else ""
-    return page("Sign in", f"""<h1>Sign in to Beacon</h1><p class="sub">Operations tracking for growing teams.</p>
+    return page(
+        "Sign in",
+        f"""<h1>Sign in to Beacon</h1><p class="sub">Operations tracking for growing teams.</p>
 <form method=post action=/login>{note}
 <label for=email>Email</label><input id=email name=email type=email autocomplete=username>
 <label for=password>Password</label><input id=password name=password type=password autocomplete=current-password>
-<button type=submit>Sign in</button></form>""")
+<button type=submit>Sign in</button></form>""",
+    )
 
 
 def profile(s):
@@ -62,16 +65,20 @@ def profile(s):
         for t in TEAM_SIZES
     )
     avatar = s.get("avatar") or "No file chosen"
-    return page("About you", f"""<div class="steps">Step 1 of 3</div><h1>About you</h1>
+    return page(
+        "About you",
+        f"""<div class="steps">Step 1 of 3</div><h1>About you</h1>
 <p class="sub">Tell us who is setting up Beacon.</p><form method=post action=/onboarding/profile>
-<label for=name>Full name</label><input id=name name=name type=text value="{html.escape(s.get('name', ''))}">
+<label for=name>Full name</label><input id=name name=name type=text value="{html.escape(s.get("name", ""))}">
 <label for=role>Role</label><select id=role name=role>{roles}</select>
 <label>Team size</label><div class="row">{sizes}</div>
 <label>Avatar</label><label class="upload">Upload avatar<input id=avatar type=file accept="image/*" hidden
 onchange="document.getElementById('avatar-name').textContent=this.files[0]?.name||'No file chosen';
 fetch('/api/avatar',{{method:'POST',body:this.files[0]?.name||''}})"></label>
 <span id=avatar-name class="muted">{html.escape(avatar)}</span>
-<div><button type=submit>Continue</button></div></form>""", s["email"])
+<div><button type=submit>Continue</button></div></form>""",
+        s["email"],
+    )
 
 
 def workspace(s):
@@ -79,16 +86,22 @@ def workspace(s):
         f'<label><input type=checkbox name=use value="{u}"{" checked" if u in s.get("uses", []) else ""}> {u}</label>'
         for u in USE_CASES
     )
-    return page("Your workspace", f"""<div class="steps">Step 2 of 3</div><h1>Create your workspace</h1>
+    return page(
+        "Your workspace",
+        f"""<div class="steps">Step 2 of 3</div><h1>Create your workspace</h1>
 <p class="sub">A workspace holds your team's shipments and vendors.</p><form method=post action=/onboarding/workspace>
 <label for=workspace>Workspace name</label>
-<input id=workspace name=workspace type=text value="{html.escape(s.get('workspace', ''))}">
+<input id=workspace name=workspace type=text value="{html.escape(s.get("workspace", ""))}">
 <label>What will you use Beacon for?</label><div class="row">{boxes}</div>
-<button type=submit>Continue</button></form>""", s["email"])
+<button type=submit>Continue</button></form>""",
+        s["email"],
+    )
 
 
 def invite(s):
-    return page("Invite your team", """<div class="steps">Step 3 of 3</div><h1>Invite your team</h1>
+    return page(
+        "Invite your team",
+        """<div class="steps">Step 3 of 3</div><h1>Invite your team</h1>
 <p class="sub">Beacon works best with your whole team. You can also do this later.</p>
 <label for=teammate>Teammate email</label><input id=teammate type=email>
 <button type=button onclick="send()">Send invite</button> <div id=status></div>
@@ -102,20 +115,29 @@ async function send(){
   console.error('Invite failed with HTTP '+response.status);
   status.innerHTML='<div class="error" role="alert">Something went wrong. Try again.</div>';
 }
-</script>""", s["email"])
+</script>""",
+        s["email"],
+    )
 
 
 def dashboard(s):
     name = html.escape((s.get("name") or "there").split()[0])
-    items = [("Profile", bool(s.get("name"))), ("Workspace", bool(s.get("workspace"))),
-             ("Team", s.get("invited") or s.get("done"))]
+    items = [
+        ("Profile", bool(s.get("name"))),
+        ("Workspace", bool(s.get("workspace"))),
+        ("Team", s.get("invited") or s.get("done")),
+    ]
     checklist = "".join(f"<li>{'✓' if done else '○'} {label}</li>" for label, done in items)
     uses = ", ".join(s.get("uses", [])) or "Not chosen"
-    return page("Dashboard", f"""<h1>Welcome, {name}!</h1>
-<p class="sub">Workspace: <b>{html.escape(s.get('workspace') or 'Untitled')}</b> · {html.escape(uses)}</p>
+    return page(
+        "Dashboard",
+        f"""<h1>Welcome, {name}!</h1>
+<p class="sub">Workspace: <b>{html.escape(s.get("workspace") or "Untitled")}</b> · {html.escape(uses)}</p>
 <h2 style="font-size:16px">Setup checklist</h2><ul class="check">{checklist}</ul>
 <button class="danger" onclick="if(confirm('Delete this workspace? This cannot be undone.'))
-fetch('/api/workspace',{{method:'DELETE'}}).then(()=>location='/login')">Delete workspace</button>""", s["email"])
+fetch('/api/workspace',{{method:'DELETE'}}).then(()=>location='/login')">Delete workspace</button>""",
+        s["email"],
+    )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -149,8 +171,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, login())
         if not s:
             return self.redirect("/login")
-        views = {"/onboarding/profile": profile, "/onboarding/workspace": workspace, "/onboarding/invite": invite,
-                 "/dashboard": dashboard}
+        views = {
+            "/onboarding/profile": profile,
+            "/onboarding/workspace": workspace,
+            "/onboarding/invite": invite,
+            "/dashboard": dashboard,
+        }
         if path in views:
             return self.send(200, views[path](s))
         self.send(404, page("Not found", "<h1>Not found</h1>"))

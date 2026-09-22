@@ -185,8 +185,12 @@ def load(path):
             raise SpecError(f"{path}: declared file '{name}' does not exist: {file}")
     try:
         return TestSpec(
-            path=path.resolve(), title=settings.pop("title", None) or title or path.stem, intent=intent,
-            steps=steps, files=files, **settings,
+            path=path.resolve(),
+            title=settings.pop("title", None) or title or path.stem,
+            intent=intent,
+            steps=steps,
+            files=files,
+            **settings,
         )
     except ValidationError as error:
         problems = "; ".join(f"{'.'.join(map(str, e['loc'])) or 'file'}: {e['msg']}" for e in error.errors())

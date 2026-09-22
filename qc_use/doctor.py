@@ -46,8 +46,11 @@ def doctor(file=None):
     url, keys, jev = model.jev_endpoint()
     key = model.credential(keys)
     via_gateway = url.startswith(model.GATEWAY)
-    report(bool(key), f"Jev {jev} via {'Vercel AI Gateway' if via_gateway else 'TypeSafe'}",
-           "" if key else f"Set {' or '.join(keys)} in qa/.env or the environment.")
+    report(
+        bool(key),
+        f"Jev {jev} via {'Vercel AI Gateway' if via_gateway else 'TypeSafe'}",
+        "" if key else f"Set {' or '.join(keys)} in qa/.env or the environment.",
+    )
     if key and via_gateway:
         try:
             response = httpx.get(model.GATEWAY + "/v1/credits", headers={"Authorization": f"Bearer {key}"}, timeout=10)
@@ -59,8 +62,11 @@ def doctor(file=None):
             report(False, f"AI Gateway unreachable: {error}")
     base, text_model = model.text_settings()
     text_key = model.text_key(base)
-    report(bool(text_key), f"Text helper {text_model} via {base}",
-           "" if text_key else "Set TEXT_MODEL_API_KEY, or AI_GATEWAY_API_KEY for the gateway.")
+    report(
+        bool(text_key),
+        f"Text helper {text_model} via {base}",
+        "" if text_key else "Set TEXT_MODEL_API_KEY, or AI_GATEWAY_API_KEY for the gateway.",
+    )
 
     if spec:
         report(True, f"Test file: {spec.title} · {len(spec.steps)} steps")

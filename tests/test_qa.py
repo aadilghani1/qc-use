@@ -179,8 +179,11 @@ def test_dialog_policy(tmp_path, monkeypatch):
 def test_redactor_masks_nested_values_longest_first():
     redact = Redactor({"EMAIL": "jane@acme.test", "USER": "jane", "PIN": "123"})
     masked = redact({"text": "Signed in as jane@acme.test (jane)", "list": ["jane", 123], "PIN 123": "123"})
-    assert masked == {"text": "Signed in as [secret:EMAIL] ([secret:USER])", "list": ["[secret:USER]", 123],
-                      "PIN 123": "123"}  # Values under four characters are left alone.
+    assert masked == {
+        "text": "Signed in as [secret:EMAIL] ([secret:USER])",
+        "list": ["[secret:USER]", 123],
+        "PIN 123": "123",
+    }  # Values under four characters are left alone.
 
 
 def test_secrets_resolve_from_environment_and_env_file(tmp_path, monkeypatch):
@@ -222,25 +225,39 @@ def test_exit_codes_distinguish_failures_from_unknowns():
 
 
 def test_report_markdown_states_the_verdict_and_rerun_hint():
-    report = Report.model_validate({
-        "run_id": "r1", "test": {"title": "Onboarding", "file": "qa/flow.md", "url": "http://localhost:3000"},
-        "started_at": "2026-09-22T10:00:00+00:00", "elapsed_ms": 2100, "outcome": "needs_approval", "exit_code": 3,
-        "summary": "Step 1 of 1 needs approval.",
-        "steps": [{"index": 1, "text": "Delete the workspace", "outcome": "needs_approval", "reason": "risky"}],
-        "approval": {"step": 1, "rule": "delete data", "action": "Delete", "probability": 0.9,
-                     "rerun_with": 'qc-use run qa/flow.md --allow "delete data"'},
-        "cost": {"usd": 0.0001, "estimated": False, "model_calls": 3, "unpriced_calls": 0, "cap": 0.25},
-        "models": {"policy": "typesafe-ai/jev", "route": "Vercel AI Gateway", "text": "inception/mercury-2.5"},
-        "artifacts": {"json": "report.json", "markdown": "report.md", "trace": "trace.json", "folder": "x"},
-    })
+    report = Report.model_validate(
+        {
+            "run_id": "r1",
+            "test": {"title": "Onboarding", "file": "qa/flow.md", "url": "http://localhost:3000"},
+            "started_at": "2026-09-22T10:00:00+00:00",
+            "elapsed_ms": 2100,
+            "outcome": "needs_approval",
+            "exit_code": 3,
+            "summary": "Step 1 of 1 needs approval.",
+            "steps": [{"index": 1, "text": "Delete the workspace", "outcome": "needs_approval", "reason": "risky"}],
+            "approval": {
+                "step": 1,
+                "rule": "delete data",
+                "action": "Delete",
+                "probability": 0.9,
+                "rerun_with": 'qc-use run qa/flow.md --allow "delete data"',
+            },
+            "cost": {"usd": 0.0001, "estimated": False, "model_calls": 3, "unpriced_calls": 0, "cap": 0.25},
+            "models": {"policy": "typesafe-ai/jev", "route": "Vercel AI Gateway", "text": "inception/mercury-2.5"},
+            "artifacts": {"json": "report.json", "markdown": "report.md", "trace": "trace.json", "folder": "x"},
+        }
+    )
     text = markdown(report)
     assert text.startswith("# ✋ Onboarding: needs approval")
     assert '--allow "delete data"' in text and "0 actions" in text
 
 
 def test_summary_reports_the_first_non_passing_step():
-    steps = [Mock(outcome="pass", index=1, reason=None), Mock(outcome="fail", index=2, reason="expect fail: x"),
-             Mock(outcome="skipped", index=3, reason=None)]
+    steps = [
+        Mock(outcome="pass", index=1, reason=None),
+        Mock(outcome="fail", index=2, reason="expect fail: x"),
+        Mock(outcome="skipped", index=3, reason=None),
+    ]
     assert runner.summarize(steps, []) == ("fail", "Step 2 of 3 failed: expect fail: x")
 
 

@@ -25,9 +25,16 @@ class Watch:
         self.lock = threading.Lock()
         self.started = time.perf_counter()
         self.state = {
-            "title": spec.title, "url": spec.url, "status": "running", "current": 0, "summary": "",
+            "title": spec.title,
+            "url": spec.url,
+            "status": "running",
+            "current": 0,
+            "summary": "",
             "steps": [{"text": s.text, "expect": s.expect, "outcome": None, "reason": None} for s in spec.steps],
-            "decision": None, "actions": [], "page": None, "shot": 0,
+            "decision": None,
+            "actions": [],
+            "page": None,
+            "shot": 0,
         }
         self.screenshot = b""
 
@@ -49,10 +56,14 @@ class Watch:
         if last:
             questions = last["request"]["questions"]
             target_question = questions.get(f"{last['operation'].lower()}_target", {})
-            targets = {k: v.get("element", k) + (f" · {v['enters']}" if "secret" in v.get("enters", "") else "")
-                       for k, v in target_question.get("criteria", {}).items()}
+            targets = {
+                k: v.get("element", k) + (f" · {v['enters']}" if "secret" in v.get("enters", "") else "")
+                for k, v in target_question.get("criteria", {}).items()
+            }
             decision = {
-                "operation": last["operation"], "confidence": last["confidence"], "latency_ms": last["latency_ms"],
+                "operation": last["operation"],
+                "confidence": last["confidence"],
+                "latency_ms": last["latency_ms"],
                 "operations": top(last["operation_probabilities"], {}),
                 "targets": top(last["target_probabilities"], targets),
             }
@@ -63,10 +74,15 @@ class Watch:
                 current=index,
                 decision=decision,
                 page=redact({"url": page.get("url", ""), "title": page.get("title", "")}),
-                actions=redact([
-                    {k: h.get(k) for k in ("action", "operation", "text", "probability", "latency_ms", "page_changed")}
-                    for h in state["history"][-12:]
-                ]),
+                actions=redact(
+                    [
+                        {
+                            k: h.get(k)
+                            for k in ("action", "operation", "text", "probability", "latency_ms", "page_changed")
+                        }
+                        for h in state["history"][-12:]
+                    ]
+                ),
                 elapsed_ms=round((time.perf_counter() - self.started) * 1000),
             )
             if image:
@@ -76,8 +92,7 @@ class Watch:
     def record(self, result):
         with self.lock:
             step = self.state["steps"][result.index - 1]
-            step.update(outcome=result.outcome, reason=result.reason,
-                        checks=[c.model_dump() for c in result.checks])
+            step.update(outcome=result.outcome, reason=result.reason, checks=[c.model_dump() for c in result.checks])
 
     def finish(self, report=None):
         with self.lock:

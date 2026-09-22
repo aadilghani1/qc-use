@@ -110,8 +110,11 @@ def diagnose(page, goal, history):
     questions = {
         "reason": {
             "type": "choice",
-            "instructions": {"question": "Why can this step not progress on the current page?", "step": goal,
-                             "note": UNTRUSTED},
+            "instructions": {
+                "question": "Why can this step not progress on the current page?",
+                "step": goal,
+                "note": UNTRUSTED,
+            },
             "criteria": REASONS,
         }
     }

@@ -146,8 +146,11 @@ def markdown(report):
         if step.outcome == "skipped":
             lines += ["Not run: an earlier step did not pass.", ""]
             continue
-        facts = [plural(len(step.actions), "action"), plural(step.decisions, "decision"),
-                 f"{step.elapsed_ms / 1000:.1f} s"]
+        facts = [
+            plural(len(step.actions), "action"),
+            plural(step.decisions, "decision"),
+            f"{step.elapsed_ms / 1000:.1f} s",
+        ]
         lines += [" · ".join(facts), ""]
         if step.reason:
             lines += [f"**Why:** {step.reason}", ""]
@@ -169,8 +172,10 @@ def markdown(report):
             lines += ["<details><summary>Actions</summary>", ""]
             for i, action in enumerate(step.actions, 1):
                 typed = f" ← `{action.text}`" if action.text else ""
-                lines.append(f"{i}. {action.operation} **{action.action}**{typed} · {action.probability:.0%} · "
-                             f"{action.latency_ms} ms")
+                lines.append(
+                    f"{i}. {action.operation} **{action.action}**{typed} · {action.probability:.0%} · "
+                    f"{action.latency_ms} ms"
+                )
             lines += ["", "</details>", ""]
         if step.screenshot:
             lines += [f"![Step {step.index}]({step.screenshot})", ""]
@@ -179,8 +184,10 @@ def markdown(report):
         for rating in report.ratings:
             spread = ", ".join(f"{rating.levels[int(k)]} {p:.0%}" for k, p in rating.probabilities.items() if p >= 0.01)
             limit = f" · minimum *{rating.minimum}*: {rating.outcome}" if rating.minimum else ""
-            lines.append(f"- **{rating.name.replace('_', ' ')}**: most likely *{rating.label}* "
-                         f"(confidence {rating.confidence:.0%}; {spread}){limit}")
+            lines.append(
+                f"- **{rating.name.replace('_', ' ')}**: most likely *{rating.label}* "
+                f"(confidence {rating.confidence:.0%}; {spread}){limit}"
+            )
         lines += ["", "Ratings are Jev's judgment from the run's evidence, not measurements.", ""]
     lines += [
         "---",

@@ -48,9 +48,16 @@ def run_command(args):
                 live = Watch.start(spec, echo)
             try:
                 report = run(
-                    spec, allow=args.allow, allow_production=args.allow_production,
-                    approve=ask_person if interactive else None, profile=args.profile, headless=args.headless,
-                    results_dir=args.results, live=live, screenshots=not args.no_screenshots, echo=echo,
+                    spec,
+                    allow=args.allow,
+                    allow_production=args.allow_production,
+                    approve=ask_person if interactive else None,
+                    profile=args.profile,
+                    headless=args.headless,
+                    results_dir=args.results,
+                    live=live,
+                    screenshots=not args.no_screenshots,
+                    echo=echo,
                 )
             except (SetupError, RuntimeError) as error:
                 print(f"qc-use: {error}", file=sys.stderr)
@@ -130,14 +137,20 @@ def parser():
 
     run = commands.add_parser("run", help="Run one or more test files, e.g. qa/onboarding.md")
     run.add_argument("files", nargs="+")
-    run.add_argument("--allow", action="append", default=[], metavar="RULE",
-                     help="Allow a never-do rule for this run (exact rule text, or '*' for all).")
+    run.add_argument(
+        "--allow",
+        action="append",
+        default=[],
+        metavar="RULE",
+        help="Allow a never-do rule for this run (exact rule text, or '*' for all).",
+    )
     run.add_argument("--allow-production", action="store_true", help="Run against a URL that looks like production.")
     run.add_argument("--profile", help="Reuse a Chrome profile folder instead of a fresh one (e.g. to stay logged in).")
     run.add_argument("--headless", action="store_true", help="Run Chrome without a window.")
     run.add_argument("--watch", action="store_true", help="Open the live inspector while the test runs.")
-    run.add_argument("--repeat", type=int, default=1, metavar="N",
-                     help="Run N times in fresh profiles and report a pass rate.")
+    run.add_argument(
+        "--repeat", type=int, default=1, metavar="N", help="Run N times in fresh profiles and report a pass rate."
+    )
     run.add_argument("--results", default="qa-results", help="Where run folders are written (default qa-results).")
     run.add_argument("--no-screenshots", action="store_true", help="Do not save step screenshots.")
     run.add_argument("--json", action="store_true", help="Print report.json to stdout instead of progress.")

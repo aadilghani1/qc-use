@@ -16,8 +16,22 @@ DEFAULT_NEVER = [
     "send an email, message, or invitation to a real person",
 ]
 LOCAL_SUFFIXES = (".localhost", ".local", ".test", ".internal", ".example", ".invalid", ".lan", ".home.arpa")
-NONPRODUCTION = {"staging", "stage", "stg", "dev", "develop", "development", "preview", "qa", "test", "testing",
-                 "sandbox", "uat", "demo", "local"}
+NONPRODUCTION = {
+    "staging",
+    "stage",
+    "stg",
+    "dev",
+    "develop",
+    "development",
+    "preview",
+    "qa",
+    "test",
+    "testing",
+    "sandbox",
+    "uat",
+    "demo",
+    "local",
+}
 
 
 def endpoint(url):

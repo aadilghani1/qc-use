@@ -15,8 +15,17 @@ from qc_use.engine.browser import StalePage, browser_operation, fingerprint
 
 @pytest.fixture(autouse=True)
 def default_providers(monkeypatch):
-    for name in ("JEV_PROVIDER", "TYPESAFE_MODEL", "AI_GATEWAY_API_KEY", "VERCEL_OIDC_TOKEN", "TEXT_MODEL_BASE_URL",
-                 "TEXT_MODEL", "TEXT_MODEL_API_KEY", "TEXT_MODEL_REASONING", "TYPESAFE_API_KEY"):
+    for name in (
+        "JEV_PROVIDER",
+        "TYPESAFE_MODEL",
+        "AI_GATEWAY_API_KEY",
+        "VERCEL_OIDC_TOKEN",
+        "TEXT_MODEL_BASE_URL",
+        "TEXT_MODEL",
+        "TEXT_MODEL_API_KEY",
+        "TEXT_MODEL_REASONING",
+        "TYPESAFE_API_KEY",
+    ):
         monkeypatch.delenv(name, raising=False)
     model.configure()
 
@@ -42,8 +51,7 @@ def login_page():
     state = page()
     state["actions"] = [
         {"id": "e1", "kind": "fill", "label": "Email", "role": "textbox", "value": "", "node": 1},
-        {"id": "e2", "kind": "fill", "label": "Password", "role": "textbox", "value": "", "node": 2,
-         "password": True},
+        {"id": "e2", "kind": "fill", "label": "Password", "role": "textbox", "value": "", "node": 2, "password": True},
         {"id": "e3", "kind": "upload", "label": "Avatar", "role": "file", "value": "", "node": 3},
         {"id": "e4", "kind": "click", "label": "Sign in", "role": "button", "value": "", "node": 4},
     ]
@@ -111,7 +119,7 @@ def test_password_fields_accept_only_declared_secrets():
 
 def test_uploads_are_offered_only_for_declared_files():
     _, targets, _ = model.action_space(login_page()["actions"], files=("avatar",))
-    (target, action), = targets["UPLOAD"].items()
+    ((target, action),) = targets["UPLOAD"].items()
     assert target.endswith(":avatar") and action["id"] == "e3" and action["file"] == "avatar"
     _, none, _ = model.action_space(login_page()["actions"])
     assert "UPLOAD" not in none
@@ -122,10 +130,13 @@ def test_secret_values_never_appear_in_the_decision_request(monkeypatch):
 
     def post(_url, _key, body):
         sent.append(json.dumps(body))
-        return {"model": "test", "answers": {
-            "operation": choice(body["questions"]["operation"]["criteria"], "TYPE_TEXT"),
-            "type_text_target": choice(body["questions"]["type_text_target"]["criteria"], "2:LOGIN_PASSWORD"),
-        }}
+        return {
+            "model": "test",
+            "answers": {
+                "operation": choice(body["questions"]["operation"]["criteria"], "TYPE_TEXT"),
+                "type_text_target": choice(body["questions"]["type_text_target"]["criteria"], "2:LOGIN_PASSWORD"),
+            },
+        }
 
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "gateway")
     monkeypatch.setattr(model, "post_json", post)
@@ -179,10 +190,13 @@ def test_gateway_is_the_default_jev_route(monkeypatch):
 
     def post(url, key, body):
         calls.append((url, key, body["model"]))
-        return {"model": body["model"], "answers": {
-            "operation": choice(body["questions"]["operation"]["criteria"], "CLICK"),
-            "click_target": choice(body["questions"]["click_target"]["criteria"], "2"),
-        }}
+        return {
+            "model": body["model"],
+            "answers": {
+                "operation": choice(body["questions"]["operation"]["criteria"], "CLICK"),
+                "click_target": choice(body["questions"]["click_target"]["criteria"], "2"),
+            },
+        }
 
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "gateway")
     monkeypatch.setattr(model, "post_json", post)
@@ -234,8 +248,14 @@ def test_text_helper_defaults_to_mercury_on_the_gateway(monkeypatch):
 
 @pytest.mark.parametrize(
     "content",
-    ["Thinking: Zurich", '{"text":null}', '{"text":"Zurich","extra":true}', '{"text":123}', '{"text":"  "}',
-     '{"text":"Zurich","source":"invented"}'],
+    [
+        "Thinking: Zurich",
+        '{"text":null}',
+        '{"text":"Zurich","extra":true}',
+        '{"text":123}',
+        '{"text":"  "}',
+        '{"text":"Zurich","source":"invented"}',
+    ],
 )
 def test_text_helper_rejects_invalid_values(monkeypatch, content):
     monkeypatch.setenv("TEXT_MODEL_API_KEY", "test")
@@ -252,8 +272,12 @@ def test_missing_text_credential_stops_before_guessing(monkeypatch):
 
 def make_agent(p=None, **options):
     p = p or page()
-    browser = Mock(fresh=Mock(return_value=True), observe=Mock(return_value=p), signals=Mock(return_value=[]),
-                   new_tabs=Mock(return_value=[]))
+    browser = Mock(
+        fresh=Mock(return_value=True),
+        observe=Mock(return_value=p),
+        signals=Mock(return_value=[]),
+        new_tabs=Mock(return_value=[]),
+    )
     a = Agent(browser, "Find a book", page=p, history=[], **options)
     a.state["started_at"] = time.perf_counter()
     return a
@@ -443,9 +467,18 @@ def test_interrupted_dropdown_mutation_cannot_be_retried_as_stale(monkeypatch, r
     cdp = Mock(return_value=response)
     monkeypatch.setattr(browser, "cdp", cdp)
     with pytest.raises(RuntimeError, match="Dropdown execution"):
-        browser_operation({"operation": "act", "session": "test", "action": {
-            "id": "e1", "kind": "select", "node": 1, "value": "Design",
-        }})
+        browser_operation(
+            {
+                "operation": "act",
+                "session": "test",
+                "action": {
+                    "id": "e1",
+                    "kind": "select",
+                    "node": 1,
+                    "value": "Design",
+                },
+            }
+        )
     assert cdp.call_count == 1
 
 
@@ -463,11 +496,14 @@ def test_step_done_is_asked_in_the_same_request_and_stops_overshooting(monkeypat
 
     def post(_url, _key, body):
         sent.append(body)
-        return {"model": "test", "answers": {
-            "operation": choice(body["questions"]["operation"]["criteria"], "CLICK"),
-            "click_target": choice(body["questions"]["click_target"]["criteria"], "2"),
-            "step_done": {"type": "noul", "noul": 0.97},
-        }}
+        return {
+            "model": "test",
+            "answers": {
+                "operation": choice(body["questions"]["operation"]["criteria"], "CLICK"),
+                "click_target": choice(body["questions"]["click_target"]["criteria"], "2"),
+                "step_done": {"type": "noul", "noul": 0.97},
+            },
+        }
 
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "gateway")
     monkeypatch.setattr(model, "post_json", post)

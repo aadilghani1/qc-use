@@ -115,14 +115,19 @@ class Browser:
                 details = params.get("exceptionDetails", {})
                 text = details.get("exception", {}).get("description") or details.get("text", "")
                 found.append({"kind": "js_exception", "text": text.splitlines()[0][:500] if text else ""})
-            elif (method == "Network.responseReceived" and params["response"]["status"] >= 400
-                  and not params["response"]["url"].endswith("/favicon.ico")):
+            elif (
+                method == "Network.responseReceived"
+                and params["response"]["status"] >= 400
+                and not params["response"]["url"].endswith("/favicon.ico")
+            ):
                 status = params["response"]["status"]
-                found.append({
-                    "kind": "http_5xx" if status >= 500 else "http_4xx",
-                    "text": f"{status} {params['response']['url'][:300]}",
-                    "status": status,
-                })
+                found.append(
+                    {
+                        "kind": "http_5xx" if status >= 500 else "http_4xx",
+                        "text": f"{status} {params['response']['url'][:300]}",
+                        "status": status,
+                    }
+                )
             elif method == "Network.loadingFailed" and not params.get("canceled"):
                 found.append({"kind": "request_failed", "text": params.get("errorText", "")[:300]})
         return found
@@ -130,7 +135,8 @@ class Browser:
     def new_tabs(self):
         """Tabs or windows this page opened. They are outside the controlled page."""
         opened = [
-            t for t in cdp("Target.getTargets")["targetInfos"]
+            t
+            for t in cdp("Target.getTargets")["targetInfos"]
             if t["type"] == "page" and t.get("openerId") == self.target and t["targetId"] not in self.popups
         ]
         self.popups.update(t["targetId"] for t in opened)
@@ -164,7 +170,9 @@ class Browser:
                         else requestAnimationFrame(ready);
                       };
                       requestAnimationFrame(ready);
-                    }))(""" + json.dumps(action) + ")",
+                    }))("""
+                    + json.dumps(action)
+                    + ")",
                     awaitPromise=True,
                     returnByValue=True,
                 )
@@ -172,9 +180,7 @@ class Browser:
                 self.settle_dialog()
         for attempt in range(10):
             try:
-                return browser_operation(
-                    {"operation": "observe", "session": self.session, "screenshot": screenshot}
-                )
+                return browser_operation({"operation": "observe", "session": self.session, "screenshot": screenshot})
             except StalePage:
                 if attempt == 9:
                     raise
@@ -255,7 +261,8 @@ def browser_operation(request):
             if type(action["node"]) is not int:
                 raise ValueError("Invalid observed node")
             # Code-owned node IDs refer to actual observed elements, never model-generated selectors.
-            target = evaluate("""(action => {
+            target = evaluate(
+                """(action => {
               const e=window.__jevFast?.nodes.get(action.node);
               if (!e?.isConnected || e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]') ||
                   !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return null;
@@ -271,7 +278,10 @@ def browser_operation(request):
                 e.dispatchEvent(new Event('change',{bubbles:true}));
               }
               return {x,y};
-            })(""" + json.dumps(action) + ")")
+            })("""
+                + json.dumps(action)
+                + ")"
+            )
             if target is None:
                 if kind == "select":
                     raise RuntimeError("Dropdown execution was not confirmed; inspect before retrying.")
