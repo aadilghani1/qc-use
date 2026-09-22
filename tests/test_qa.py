@@ -140,7 +140,7 @@ def test_links_outside_allowed_sites_are_blocked_before_clicking(tmp_path):
 
 
 def test_never_gate_asks_before_clicks_and_caches(tmp_path, monkeypatch):
-    gate = Mock(return_value={rule: 0.05 for rule in guards.DEFAULT_NEVER} | {"cancel the plan": 0.9})
+    gate = Mock(return_value=dict.fromkeys(guards.DEFAULT_NEVER, 0.05) | {"cancel the plan": 0.9})
     monkeypatch.setattr(judge, "gate", gate)
     guard = guards.Guardrails(spec_for(tmp_path, "url: http://localhost:3000\nnever: [cancel the plan]"))
     button = {"label": "Cancel plan", "kind": "click", "role": "button"}
@@ -156,7 +156,7 @@ def test_never_gate_asks_before_clicks_and_caches(tmp_path, monkeypatch):
 
 
 def test_allowed_or_approved_rules_let_the_action_run(tmp_path, monkeypatch):
-    monkeypatch.setattr(judge, "gate", Mock(return_value={rule: 0.95 for rule in guards.DEFAULT_NEVER}))
+    monkeypatch.setattr(judge, "gate", Mock(return_value=dict.fromkeys(guards.DEFAULT_NEVER, 0.95)))
     button = {"label": "Delete", "kind": "click", "role": "button"}
     allowed = guards.Guardrails(spec_for(tmp_path), allowed_rules=["*"])
     allowed.before_act(button, {"url": "http://localhost:3000/"}, {})

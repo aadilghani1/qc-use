@@ -1,13 +1,14 @@
 """Run a test file end to end: one private browser, one Jev goal per step, independent checks, one report."""
 
 import base64
+import contextlib
 import io
 import json
 import os
 import secrets as tokens
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -76,10 +77,8 @@ def connect(chrome):
 
 
 def reap(pid):
-    try:
+    with contextlib.suppress(ChildProcessError, OSError):
         os.waitpid(pid, 0)
-    except (ChildProcessError, OSError):
-        pass
 
 
 def disconnect(browser):
@@ -147,7 +146,7 @@ def verify(spec, step, browser, goal):
         page = browser.observe(screenshot=True)
         checks = [
             CheckResult(kind=kind, text=text, probability=round(p, 4), outcome=band(p, spec.bands))
-            for text, p in zip(statements, judge.expectations(page, goal, statements))
+            for text, p in zip(statements, judge.expectations(page, goal, statements), strict=True)
         ]
         checks += [CheckResult(kind="check", text=str(c), outcome="pass" if c.evaluate(page) else "fail")
                    for c in step.check]
@@ -289,14 +288,14 @@ def run(spec, *, allow=(), allow_production=False, approve=None, profile=None, h
     jev_url, keys, policy_model = model.jev_endpoint()
     if not model.credential(keys):
         raise SetupError(f"Jev needs {' or '.join(keys)}. Run `qc-use doctor` for setup help.")
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + tokens.token_hex(2)
+    run_id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-") + tokens.token_hex(2)
     out = Path(results_dir) / run_id
     (out / "steps").mkdir(parents=True)
     redact, meter = Redactor(secrets), model.Meter(spec.max_cost)
     model.configure(redact=redact, meter=meter)
     guard = Guardrails(spec, allow, approve)
     context = {"tag": tokens.token_hex(3), "secrets": secrets, "out": out, "live": live, "screenshots": screenshots}
-    started, started_at = time.perf_counter(), datetime.now(timezone.utc).isoformat(timespec="seconds")
+    started, started_at = time.perf_counter(), datetime.now(UTC).isoformat(timespec="seconds")
     results, traces, approval, browser, chrome = [], [], None, None, None
     try:
         chrome = Chrome(profile=profile, headless=headless)

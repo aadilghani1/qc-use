@@ -30,19 +30,19 @@ class Agent:
         self.screenshots = screenshots
         self.max_actions = max_actions
         self.pending_text = None
-        self.state = dict(
-            goal=goal,
-            page=page,
-            decision=None,
-            history=history,  # Shared across steps, so recent actions carry over.
-            first_action=len(history),
-            status="ready",
-            decisions=[],
-            text_calls=[],
-            signals=[],
-            started_at=None,
-            elapsed_ms=0,
-        )
+        self.state = {
+            "goal": goal,
+            "page": page,
+            "decision": None,
+            "history": history,  # Shared across steps, so recent actions carry over.
+            "first_action": len(history),
+            "status": "ready",
+            "decisions": [],
+            "text_calls": [],
+            "signals": [],
+            "started_at": None,
+            "elapsed_ms": 0,
+        }
 
     def elapsed(self):
         return round((time.perf_counter() - self.state["started_at"]) * 1000)
