@@ -81,7 +81,9 @@ Rules for good tests:
 qc-use run qa/<flow-name>.md --watch
 ```
 
-For a local interactive run, use `--watch` and open the printed URL. Omit it for unattended CI. Each run uses a fresh Chrome profile unless `--profile` reuses a dedicated profile. Results land in `qa-results/<run-id>/`.
+For a local interactive run, use `--watch` and open the printed URL. Omit it for unattended CI.
+For CI, use `qc-use run qa/*.md --headless --junit qa-results/junit.xml --summary "$GITHUB_STEP_SUMMARY"`, or the GitHub Action in https://github.com/aadilghani1/qc-use/blob/main/docs/ci.md.
+Use `--base-url` to run the same test on a staging or preview origin. Each run uses a fresh Chrome profile unless `--profile` reuses a dedicated profile. Results land in `qa-results/<run-id>/`.
 The live view is read-only. A missing image means masking could not be checked.
 Use `qc-use demo --watch` for visible Chrome and its inspector. Add `--headless` only when the user wants Chrome hidden.
 Viewport text is capped at 6,000 characters. Document text is capped at 20,000 characters.

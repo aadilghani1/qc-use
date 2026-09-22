@@ -128,6 +128,8 @@ qc-use run qa/onboarding.md --watch    # also open the live view
 qc-use run qa/*.md --repeat 3          # requires repeat_safe: true and repeatable test accounts
 qc-use demo --watch                            # visible Chrome and live inspector
 qc-use demo --headless --results /tmp/qc-use-demo  # keep demo reports outside your project
+qc-use run qa/*.md --headless --junit qa-results/junit.xml --summary qa-results/summary.md  # CI outputs
+qc-use run qa/login.md --base-url https://staging.example.test  # same path, another origin
 ```
 
 Each run writes a folder in `qa-results/`:
@@ -145,6 +147,21 @@ The exit code tells your agent or your CI what happened:
 | 2 | inconclusive or blocked | qc-use is not sure, or it cannot continue. The report says why. |
 | 3 | needs approval | The next action can break a never-do rule. A person must allow it. |
 | 4 | setup error | The test file, a secret, a key, or the URL is not ready. Nothing ran. |
+
+## Run in CI
+
+Use the GitHub Action to run your critical paths on each pull request or on a schedule:
+
+```yaml
+- uses: aadilghani1/qc-use@v0.3.0
+  env:
+    AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+  with:
+    tests: qa/*.md
+    base-url: https://staging.example.com
+```
+
+The job summary shows one row for each test. JUnit XML shows one test case for each step. The run folders are uploaded as an artifact. Matrix jobs run tests in parallel. See [docs/ci.md](docs/ci.md).
 
 ## How it works
 

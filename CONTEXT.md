@@ -54,3 +54,6 @@ This file defines the words in qc-use. The code, the docs, and the reports use t
 - **Back**: navigation to the previous observed browser-history entry.
 - **Reload**: loading the current page again through Chrome.
 - **Uncertain action**: input that an error stopped after it may have run. qc-use records it once and never repeats it.
+
+- **Base URL**: another origin for a test's start URL, such as a preview deployment. The path of the start URL stays the same.
+- **CI summary**: the Markdown table and the JUnit XML that one `qc-use run` command writes for CI. They contain no secret values.

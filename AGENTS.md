@@ -35,6 +35,7 @@ And:
 | `guards.py` | The `Policy` hooks: allowed sites, production URLs, the gate, and dialog decisions. |
 | `secrets.py` | Resolves secrets and holds the `Redactor`. |
 | `report.py` | The report models, exit codes, and `report.md`. |
+| `summary.py` | The CI summary and JUnit XML for the reports of one command. |
 | `chrome.py` | Starts Chrome with a private profile. |
 | `watch.py`, `watch.html`, `saved_view.py` | The read-only live and saved view for `--watch`. |
 | `doctor.py`, `scaffold.py`, `skill.py`, `demo/` | The `doctor`, `init`, `skill`, and `demo` commands. |
@@ -109,6 +110,7 @@ Update each doc that your change touches:
 | A new word | `CONTEXT.md` first |
 | A test-file setting | `spec.py`, `docs/test-files.md`, and `qc_use/SKILL.md` if agents should use it |
 | A command or a flag | `cli.py`, README "Run a test", and `install.md` if setup changes |
+| CI outputs or the GitHub Action | `action.yml` and `docs/ci.md` |
 | An outcome or an exit code | `report.py`, `CONTEXT.md`, README, and `qc_use/SKILL.md` |
 | Safety behavior | `docs/safety.md` and README "Safety" |
 | Engine behavior | `docs/how-it-works.md` |

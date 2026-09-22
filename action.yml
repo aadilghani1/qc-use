@@ -1,0 +1,77 @@
+name: qc-use critical path
+description: Run qc-use test files in CI. Get a verdict and evidence for each step, JUnit XML, and a job summary.
+author: Aadil Ghani
+branding:
+  icon: check-circle
+  color: green
+
+inputs:
+  tests:
+    description: Test files or glob patterns, separated by spaces.
+    default: qa/*.md
+  base-url:
+    description: Start each test on this origin instead, such as a preview deployment. Each test keeps its path.
+    default: ""
+  results:
+    description: The folder for run results.
+    default: qa-results
+  args:
+    description: More arguments for `qc-use run`, such as `--repeat 3`.
+    default: ""
+  upload:
+    description: Upload the results folder as a workflow artifact.
+    default: "true"
+  artifact-name:
+    description: The artifact name. Give each job in a matrix its own name.
+    default: qc-use-results
+
+outputs:
+  exit-code:
+    description: 0 pass, 1 fail, 2 inconclusive or blocked, 3 needs approval, 4 setup error.
+    value: ${{ steps.run.outputs.exit-code }}
+  junit:
+    description: The path of the JUnit XML file.
+    value: ${{ steps.run.outputs.junit }}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v10.2.0
+
+    # Install from this action's own checkout, so the action ref pins the qc-use version.
+    - name: Install qc-use
+      shell: bash
+      run: |
+        uv tool install --python 3.12 --reinstall "$GITHUB_ACTION_PATH"
+        uv tool dir --bin >> "$GITHUB_PATH"
+
+    - name: Run the critical paths
+      id: run
+      shell: bash
+      env:
+        TESTS: ${{ inputs.tests }}
+        BASE_URL: ${{ inputs.base-url }}
+        RESULTS: ${{ inputs.results }}
+        ARGS: ${{ inputs.args }}
+      run: |
+        if [ -n "$BASE_URL" ]; then set -- --base-url "$BASE_URL"; fi
+        echo "junit=$RESULTS/junit.xml" >> "$GITHUB_OUTPUT"
+        # $TESTS and $ARGS are split into words on purpose, so that globs expand.
+        code=0
+        qc-use run $TESTS --headless --results "$RESULTS" --junit "$RESULTS/junit.xml" \
+          --summary "$GITHUB_STEP_SUMMARY" "$@" $ARGS || code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+
+    - name: Upload the evidence
+      if: always() && inputs.upload == 'true'
+      uses: actions/upload-artifact@v7.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.results }}
+        if-no-files-found: ignore
+
+    - name: Report the outcome
+      shell: bash
+      env:
+        CODE: ${{ steps.run.outputs.exit-code }}
+      run: exit "${CODE:-4}"

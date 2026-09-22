@@ -25,7 +25,7 @@ def run_command(args):
     from .report import SETUP_ERROR
     from .runner import SetupError, run
     from .secrets import Redactor, load_env
-    from .spec import SpecError, load
+    from .spec import SpecError, load, rebase
 
     interactive = sys.stdin.isatty() and sys.stdout.isatty() and not args.json
     output = partial(print, flush=True) if not args.json else (lambda *_: None)
@@ -34,32 +34,38 @@ def run_command(args):
     def echo(message):
         output(redact.text(message))
 
-    codes, reports = [], []
+    codes, reports, setup_errors, redactors = [], [], [], []
     initial_environment = dict(os.environ)
+
+    def setup_error(file, message):
+        print(redact.text(f"qc-use: {message}"), file=sys.stderr)
+        setup_errors.append({"file": str(file), "error": redact.text(str(message))})
+        codes.append(SETUP_ERROR)
+
     for file in args.files:
         os.environ.clear()
         os.environ.update(initial_environment)
+        redact = Redactor({})
         try:
             spec = load(file)
         except (SpecError, OSError) as error:
-            print(f"qc-use: {error}", file=sys.stderr)
-            codes.append(SETUP_ERROR)
+            setup_error(file, error)
             continue
         load_env(spec.path.parent)
         load_env(Path.cwd())
         redact = Redactor({name: os.environ.get(name, "") for name in spec.secrets})
+        redactors.append(redact)
+        if args.base_url:
+            try:
+                spec = rebase(spec, args.base_url)
+            except SpecError as error:
+                setup_error(file, error)
+                continue
         if args.repeat > 1 and not spec.repeat_safe:
-            print(
-                "qc-use: repeat needs repeat_safe: true and equivalent test account state for each run.",
-                file=sys.stderr,
-            )
-            codes.append(SETUP_ERROR)
+            setup_error(file, "repeat needs repeat_safe: true and equivalent test account state for each run.")
             continue
         if args.manual_auth and (args.headless or not args.profile or not interactive):
-            print(
-                "qc-use: --manual-auth needs an interactive terminal, --profile, and visible Chrome.", file=sys.stderr
-            )
-            codes.append(SETUP_ERROR)
+            setup_error(file, "--manual-auth needs an interactive terminal, --profile, and visible Chrome.")
             continue
         for attempt in range(args.repeat):
             label = f" (run {attempt + 1}/{args.repeat})" if args.repeat > 1 else ""
@@ -90,8 +96,7 @@ def run_command(args):
                     live.finish()
                 raise
             except (SetupError, RuntimeError, ValueError, TimeoutError, OSError) as error:
-                print(redact.text(f"qc-use: {error}"), file=sys.stderr)
-                codes.append(SETUP_ERROR)
+                setup_error(file, error)
                 if live:
                     live.finish()
                 break
@@ -111,10 +116,31 @@ def run_command(args):
             runs = [r for r in reports if r.test["file"] == str(spec.path)]
             passed = sum(r.outcome == "pass" for r in runs)
             echo(f"Pass rate for {spec.title}: {passed}/{len(runs)}")
+    write_summaries(args, reports, setup_errors, redactors)
     if args.json:
         payload = [r.model_dump(mode="json") for r in reports]
         print(json.dumps(payload[0] if len(payload) == 1 else payload, indent=2))
     return max(codes, default=SETUP_ERROR)
+
+
+def write_summaries(args, reports, setup_errors, redactors):
+    """Write the CI summary files from data that passed through every run's Redactor."""
+    from .summary import junit, markdown_summary
+
+    if not (args.summary or args.junit):
+        return
+    # Redact before formatting: XML escaping would hide a secret that contains & or < from a later text pass.
+    for redact in redactors:
+        reports = [report.redacted(redact) for report in reports]
+        setup_errors = redact(setup_errors)
+    if args.summary:
+        # Append, because CI summary files such as $GITHUB_STEP_SUMMARY can hold other steps' output.
+        with Path(args.summary).open("a", encoding="utf-8") as file:
+            file.write(markdown_summary(reports, setup_errors))
+    if args.junit:
+        path = Path(args.junit)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(junit(reports, setup_errors), encoding="utf-8")
 
 
 def init_command(args):
@@ -231,6 +257,13 @@ def parser():
         help="Run N times; requires repeat_safe: true. Profiles do not reset server accounts.",
     )
     run.add_argument("--results", default="qa-results", help="Where run folders are written (default qa-results).")
+    run.add_argument(
+        "--base-url",
+        metavar="URL",
+        help="Start on this origin instead, keeping each test's path, e.g. a preview deployment.",
+    )
+    run.add_argument("--junit", metavar="FILE", help="Write JUnit XML with one test case for each step.")
+    run.add_argument("--summary", metavar="FILE", help="Append a Markdown summary table, e.g. to $GITHUB_STEP_SUMMARY.")
     run.add_argument("--no-screenshots", action="store_true", help="Do not save step screenshots.")
     run.add_argument("--json", action="store_true", help="Print report.json to stdout instead of progress.")
     run.set_defaults(handler=run_command)

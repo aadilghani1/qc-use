@@ -29,6 +29,28 @@ jobs:
       - run: uv build
       - run: uv run python tools/check_dist.py
 
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # No key is set, so the action must report a setup error in every output without running a model.
+      - id: qa
+        uses: ./
+        continue-on-error: true
+        with:
+          tests: qc_use/demo/tests/onboarding.md qa/missing.md
+          upload: "false"
+      - name: Check the action outputs
+        env:
+          OUTCOME: ${{ steps.qa.outcome }}
+          CODE: ${{ steps.qa.outputs.exit-code }}
+          JUNIT: ${{ steps.qa.outputs.junit }}
+        run: |
+          test "$OUTCOME" = failure
+          test "$CODE" = 4
+          grep -q 'errors="2"' "$JUNIT"
+          grep -q 'Missing secrets: DEMO_EMAIL' "$JUNIT"
+
   installed:
     strategy:
       matrix:

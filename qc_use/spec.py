@@ -231,6 +231,20 @@ def parse_body(body):
     return title, " ".join(intent), steps
 
 
+def rebase(spec, base_url):
+    """Move the start URL to another origin, e.g. a preview deployment. The path, query, and checks stay."""
+    base = urlparse(base_url)
+    if base.path not in {"", "/"} or base.query or base.fragment:
+        raise SpecError(f"--base-url must be an origin such as https://preview.example.test, not '{base_url}'.")
+    url = urlparse(spec.url)._replace(scheme=base.scheme, netloc=base.netloc).geturl()
+    try:
+        return TestSpec.model_validate({**spec.model_dump(), "url": url})
+    except ValidationError:
+        raise SpecError(
+            f"--base-url must be an http(s) origin such as http://localhost:3000, not '{base_url}'."
+        ) from None
+
+
 def load(path):
     path = Path(path)
     try:
