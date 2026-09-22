@@ -42,8 +42,13 @@ class Browser:
         self.call("Page.navigate", url=url)
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            if self.evaluate("document.readyState") == "complete":
-                break
+            try:
+                if self.evaluate("document.readyState") == "complete":
+                    break
+            except TimeoutError:
+                # A dialog on load blocks evaluation. Decide it, then keep waiting for the page.
+                if not self.settle_dialog():
+                    raise
             time.sleep(0.02)
 
     def call(self, method, **params):

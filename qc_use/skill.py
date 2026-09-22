@@ -25,7 +25,11 @@ def install(targets=None, path=None):
     """Write the skill for every detected agent, for the named agents, or to one exact path."""
     places = locations()
     if path:
-        destinations = [("custom", Path(path).expanduser())]
+        destination = Path(path).expanduser()
+        # A folder, or any path that does not name a .md file, gets SKILL.md inside it.
+        if destination.is_dir() or destination.suffix.lower() != ".md":
+            destination = destination / "SKILL.md"
+        destinations = [("custom", destination)]
     else:
         names = targets or [name for name, (folder, _) in places.items() if name == "agents" or folder.is_dir()]
         unknown = [name for name in names if name not in places]

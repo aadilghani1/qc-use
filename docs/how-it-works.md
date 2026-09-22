@@ -28,6 +28,8 @@ Each action decision is one request to Jev. Independent checkpoint and result ch
 5. **Run the gate.** Before a click, fill, dropdown choice, upload, Back, or Reload, the gate checks the never-do rules (`guards.py`).
 6. **Do the action.** Code finds the element again, checks that it is still visible and not covered, and then clicks or types. For a text field, the text helper writes the value. For a secret, code types the value.
 7. **Record, then read again.** qc-use records the action before it reads the page again. A page change during the read cannot hide the action.
+   If an error stops the input after it may have run, such as a dialog that needs approval or a browser timeout, qc-use records the action once as uncertain. It never repeats it.
+   If the first read after an action finds a changing page, qc-use compares the next good read with the page before the action. Three actions in a row that change nothing stop the step.
 
 Jev never writes a selector, a coordinate, or code. Element actions use observed nodes. Back uses an observed Chrome history entry. Reload uses the current page.
 
@@ -42,6 +44,7 @@ The page can change between the read and the action. qc-use checks the page agai
 ## Dialogs
 
 A browser dialog, such as `confirm()`, freezes the page. qc-use sends each input from a second thread. The main thread watches for dialogs. When a dialog opens, qc-use decides it (see [safety.md](safety.md)), and then the input finishes.
+A dialog can also open while the start page loads. qc-use decides it the same way. If it needs approval or cannot be answered, step 1 stops with a report.
 
 ## Checks after a step
 

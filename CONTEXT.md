@@ -53,3 +53,4 @@ This file defines the words in qc-use. The code, the docs, and the reports use t
 - **Saved view**: the local inspector showing an existing report and its saved step images.
 - **Back**: navigation to the previous observed browser-history entry.
 - **Reload**: loading the current page again through Chrome.
+- **Uncertain action**: input that an error stopped after it may have run. qc-use records it once and never repeats it.

@@ -47,6 +47,7 @@ AI_GATEWAY_API_KEY=your-key
 ```
 
 You can also set the key in your environment. The environment wins over `qa/.env`. Empty template values do not hide values from the project’s `.env`.
+qc-use reads `.env` files as dotenv does. It removes one pair of quotes around a value. `export NAME=value` works. Text after ` #` is a comment, so quote a value that contains ` #`.
 
 Coding agents: do not ask the user to paste a key or a password into the chat. Ask the user to edit `qa/.env`.
 

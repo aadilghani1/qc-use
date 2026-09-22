@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .errors import ProviderUnavailable
+from .errors import ProviderRejected, ProviderUnavailable
 
 RETRY_SECONDS = 45.0
 TRANSIENT = {429, 502, 503, 504, 529}
@@ -145,8 +145,9 @@ def send(client, url, key, body, meter, redact, purpose):
             if not response.is_error:
                 return response, record
             if response.status_code not in TRANSIENT:
-                raise RuntimeError(
-                    f"Model provider returned HTTP {response.status_code}; inspect trace.json for details."
+                raise ProviderRejected(
+                    f"Model provider returned HTTP {response.status_code}; inspect trace.json for details.",
+                    response.status_code,
                 )
         remaining = deadline - time.monotonic()
         delay = retry_delay(response, attempt - 1)

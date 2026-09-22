@@ -144,8 +144,8 @@ def skill_command(args):
     targets = list(TARGETS) if args.target == "all" else [args.target] if args.target else None
     try:
         lines = install(targets=targets, path=args.path)
-    except ValueError as error:
-        print(f"qc-use: {error}", file=sys.stderr)
+    except (ValueError, OSError) as error:
+        print(f"qc-use: Cannot install the skill: {error}", file=sys.stderr)
         return SETUP_ERROR
     for line in lines:
         print(line)

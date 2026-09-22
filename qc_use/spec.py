@@ -13,7 +13,8 @@ CHECK = re.compile(
     r"^(?P<subject>url|title|text|document)\s+(?P<verb>contains|matches|does not contain|absent)\s+(?P<value>.+)$", re.I
 )
 STEP = re.compile(r"^(\d+)[.)]\s+(.+)$")
-DETAIL = re.compile(r"^\s+[-*]\s+(expect|check|action|mode):\s*(.+)$", re.I)
+# A detail may use any list marker, or none, at any indentation. A missed detail would silently weaken a step.
+DETAIL = re.compile(r"^\s*(?:[-*+]\s+)?(expect|check|action|mode)\s*:\s*(.+)$", re.I)
 
 
 class SpecError(ValueError):
@@ -162,6 +163,19 @@ class TestSpec(SettingsModel):
         _ = parsed.port
         return value
 
+    @field_validator("allow")
+    @classmethod
+    def site_patterns(cls, entries):
+        for entry in entries:
+            parsed = urlparse(entry if "://" in entry else f"//{entry}")
+            try:
+                _ = parsed.port
+            except ValueError:
+                raise ValueError(f"'{entry}' has an invalid port") from None
+            if not parsed.hostname:
+                raise ValueError(f"'{entry}' is not a host, host:port, or *.domain")
+        return entries
+
     @field_validator("secrets")
     @classmethod
     def secret_names(cls, names):
@@ -182,6 +196,7 @@ def parse_body(body):
     """Split markdown into a title, an intent paragraph, and numbered steps with expect/check details."""
     title, intent = None, []
     steps: list[dict] = []
+    last = None  # The detail that an indented line continues, if any.
     for line in body.splitlines():
         if not line.strip():
             continue
@@ -189,22 +204,39 @@ def parse_body(body):
             title = line[2:].strip()
         elif match := STEP.match(line):
             steps.append({"text": match[2].strip(), "expect": [], "check": [], "action": []})
+            last = None
         elif (match := DETAIL.match(line)) and steps:
             kind, value = match[1].lower(), match[2].strip()
+            last = kind
             if kind == "mode":
                 steps[-1][kind] = unquote(value)
             else:
                 steps[-1][kind].append(Check.parse(value) if kind == "check" else unquote(value))
         elif steps and line.startswith((" ", "\t")):
-            steps[-1]["text"] += " " + line.strip()
-        elif not steps:
+            if last in {"check", "mode"}:
+                raise SpecError(
+                    f"Write each {last}: on one line. Step {len(steps)} continues it with '{line.strip()}'."
+                )
+            if last:
+                steps[-1][last][-1] += " " + line.strip()
+            else:
+                steps[-1]["text"] += " " + line.strip()
+        elif steps:
+            raise SpecError(
+                f"Step {len(steps)} is followed by '{line.strip()}'. Indent continuation lines, or start a detail "
+                "with expect:, check:, action:, or mode:."
+            )
+        else:
             intent.append(line.strip())
     return title, " ".join(intent), steps
 
 
 def load(path):
     path = Path(path)
-    source = path.read_text(encoding="utf-8")
+    try:
+        source = path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        raise SpecError(f"{path}: save the test file as UTF-8 text.") from None
     match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", source, re.S)
     if not match:
         raise SpecError(f"{path}: start the file with YAML front matter between --- lines (url: is required).")
@@ -214,13 +246,16 @@ def load(path):
         raise SpecError(f"{path}: invalid front matter: {error}") from None
     if not isinstance(settings, dict):
         raise SpecError(f"{path}: front matter must be key: value settings.")
+    if names := [name for name in settings if not isinstance(name, str)]:
+        # YAML reads on:, yes:, and 1: as a boolean or a number.
+        raise SpecError(f"{path}: setting names must be text; quote '{names[0]}'.")
     reserved = set(settings) & {"path", "intent", "steps"}
     if reserved:
         raise SpecError(f"{path}: reserved fields: {', '.join(sorted(reserved))}")
     try:
         title, intent, steps = parse_body(match[2])
     except (SpecError, ValidationError) as error:
-        raise SpecError(f"{path}: check: {error}") from None
+        raise SpecError(f"{path}: {error}") from None
     raw_files = settings.pop("files", {})
     if not isinstance(raw_files, dict) or any(not isinstance(v, str) for v in raw_files.values()):
         raise SpecError(f"{path}: files must map names to file paths")

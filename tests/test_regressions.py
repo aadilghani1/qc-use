@@ -11,7 +11,7 @@ from PIL import Image
 
 from qc_use import capture, cli, judge, runner
 from qc_use.engine import browser, model
-from qc_use.engine.errors import Blocked, StalePage
+from qc_use.engine.errors import Blocked, NeedsApproval, StalePage
 from qc_use.guards import Guardrails, looks_like_production
 from qc_use.report import StepResult
 from qc_use.secrets import Redactor, environment
@@ -436,3 +436,47 @@ def test_required_rating_outage_preserves_completed_steps(spec, fake_run, tmp_pa
     assert report.steps[0].outcome == "pass"
     assert report.outcome == "blocked" and report.provider_issue.kind == "provider_unavailable"
     assert "ease" in report.rating_issues and post.call_count == 1
+
+
+@pytest.mark.parametrize(
+    ("error", "outcome", "code"),
+    [
+        (NeedsApproval("delete stored data", "confirm: Delete everything?", 0.9), "needs_approval", 3),
+        (Blocked("unsupported: a prompt() dialog asked for text: Name?"), "blocked", 2),
+    ],
+)
+def test_dialog_on_the_start_page_writes_a_report(spec, fake_run, tmp_path, error, outcome, code):
+    fake_run.observe.side_effect = error
+    report = runner.run(spec, results_dir=tmp_path, screenshots=False, echo=lambda *_: None)
+    assert (report.outcome, report.exit_code, report.steps[0].outcome) == (outcome, code, outcome)
+    assert (report.approval is not None) == (outcome == "needs_approval")
+    assert (tmp_path / report.run_id / "report.json").exists()
+
+
+def test_rerun_command_is_quoted_for_the_shell(spec, fake_run, tmp_path):
+    import shlex
+
+    spec.path = tmp_path / "my tests" / "flow.md"
+    rule = 'send a "real" email $HOME'
+    fake_run.observe.side_effect = NeedsApproval(rule, "Send", 0.9)
+    report = runner.run(spec, results_dir=tmp_path, screenshots=False, echo=lambda *_: None)
+    assert shlex.split(report.approval.rerun_with) == ["qc-use", "run", str(spec.path), "--allow", rule]
+
+
+def test_dialog_on_load_is_decided_while_the_page_loads(monkeypatch):
+    states = [TimeoutError("blocked by alert"), "loading", "complete"]
+
+    def evaluate(self, expression):
+        state = states.pop(0)
+        if isinstance(state, Exception):
+            raise state
+        return state
+
+    monkeypatch.setattr(browser, "ensure_daemon", Mock())
+    monkeypatch.setattr(browser, "cdp", Mock(return_value={"targetId": "t", "sessionId": "s"}))
+    monkeypatch.setattr(browser.Browser, "evaluate", evaluate)
+    settle = Mock(return_value=True)
+    monkeypatch.setattr(browser.Browser, "settle_dialog", settle)
+    browser.Browser("http://localhost:3000")
+    settle.assert_called_once()
+    assert states == []

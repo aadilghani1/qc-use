@@ -309,3 +309,130 @@ def test_navigation_controls_obey_allowed_sites_and_gate(tmp_path, monkeypatch, 
     with pytest.raises(NeedsApproval):
         guard.before_act(action, {"url": "http://localhost:3000"}, {})
     gate.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "- check: url contains /home",
+        "* check : url contains /home",
+        "+ check: url contains /home",
+        "   check: url contains /home",
+        "\t- CHECK: url contains /home",
+    ],
+)
+def test_details_count_at_any_indentation_and_list_marker(tmp_path, detail):
+    spec = load(write(tmp_path, f"---\nurl: http://localhost:3000\n---\n1. Sign in\n{detail}\n"))
+    assert [str(c) for c in spec.steps[0].check] == ["url contains /home"]
+    assert spec.steps[0].text == "Sign in"
+
+
+def test_wrapped_expectation_continues_the_expectation(tmp_path):
+    text = "1. Sign in\n   - expect: the dashboard shows the\n     Northwind Freight workspace\n2. Open reports\n"
+    spec = load(write(tmp_path, f"---\nurl: http://localhost:3000\n---\n{text}"))
+    assert spec.steps[0].expect == ["the dashboard shows the Northwind Freight workspace"]
+    assert spec.steps[0].text == "Sign in"
+
+
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        ("1. Sign in\n## Notes\n", "Step 1 is followed by '## Notes'"),
+        ("1. Sign in\n   - check: url contains /home\n     /reports\n", "one line"),
+    ],
+)
+def test_lines_that_cannot_be_placed_are_errors_not_dropped(tmp_path, body, message):
+    with pytest.raises(SpecError, match=message):
+        load(write(tmp_path, f"---\nurl: http://localhost:3000\n---\n{body}"))
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("---\nurl: http://localhost:3000\ntitle: caf\xe9\n---\n1. Go\n".encode("cp1252"), "UTF-8"),
+        (b"---\nurl: http://localhost:3000\non: push\n---\n1. Go\n", "quote 'True'"),
+        (b"---\nurl: http://localhost:3000\nallow: ['auth.test:abc']\n---\n1. Go\n", "invalid port"),
+    ],
+)
+def test_unreadable_test_files_are_setup_errors(tmp_path, content, message):
+    path = tmp_path / "flow.md"
+    path.write_bytes(content)
+    with pytest.raises(SpecError, match=message):
+        load(path)
+    from qc_use import cli
+
+    assert cli.main(["validate", str(path)]) == 4
+
+
+def test_test_file_with_a_byte_order_mark_loads(tmp_path):
+    path = tmp_path / "flow.md"
+    path.write_bytes(b"\xef\xbb\xbf---\nurl: http://localhost:3000\n---\n1. Go\n   - expect: done\n")
+    assert load(path).url == "http://localhost:3000"
+
+
+@pytest.mark.parametrize(
+    ("line", "key", "value"),
+    [
+        ('P=pa55word"', "P", 'pa55word"'),
+        ('P="abc\'"', "P", "abc'"),
+        ("P='x\"y'", "P", 'x"y'),
+        ("export K=v", "K", "v"),
+        ("K=v # note", "K", "v"),
+        ('K="v # not a note" # note', "K", "v # not a note"),
+        ("K=a#b", "K", "a#b"),
+        ("﻿K=v", "K", "v"),
+    ],
+)
+def test_env_files_keep_secret_values_exact(tmp_path, line, key, value):
+    (tmp_path / ".env").write_text(line + "\n", encoding="utf-8")
+    assert read_env_file(tmp_path / ".env") == {key: value}
+
+
+def test_partial_secret_at_a_cut_is_masked():
+    redact = Redactor({"LOGIN_EMAIL": "qa-lead@northwind.test"})
+    cut = ("x" * 2985 + "qa-lead@northwind.test")[:3000]
+    assert redact.text(cut).endswith("x[secret:LOGIN_EMAIL]")
+    assert redact.text("line one qa-lead@no\nnext") == "line one [secret:LOGIN_EMAIL]\nnext"
+    assert redact.text("reply to qa-lead@example.com") == "reply to qa-lead@example.com"
+
+
+@pytest.mark.parametrize(
+    ("href", "reason"),
+    [
+        ("javascript:void(0)", None),
+        ("http://localhost:3000/next", None),
+        ("https://outside.example.com/", "outside the allowed sites"),
+        ("mailto:sales@example.com", "opens another app"),
+    ],
+)
+def test_links_are_checked_by_scheme(monkeypatch, href, reason):
+    spec = load_example_spec()
+    guard = guards.Guardrails(spec)
+    monkeypatch.setattr(judge, "gate", Mock(return_value={}))
+    action = {"kind": "click", "label": "Open", "href": href}
+    if reason:
+        with pytest.raises(Blocked, match=reason):
+            guard.before_act(action, {"url": spec.url}, {})
+    else:
+        guard.before_act(action, {"url": spec.url}, {})
+
+
+def load_example_spec():
+    from qc_use.spec import Step, TestSpec
+
+    return TestSpec(title="T", url="http://localhost:3000/login", steps=[Step(text="Go", expect=["x"])])
+
+
+@pytest.mark.parametrize(
+    ("url", "production"),
+    [
+        ("https://www.local-bank.com", True),
+        ("https://test-kitchen.com", True),
+        ("https://dev.to", True),
+        ("https://test.co.uk", True),
+        ("https://staging.acme.co.uk", False),
+        ("https://app-staging.acme.com", False),
+    ],
+)
+def test_production_names_ignore_words_in_the_site_name(url, production):
+    assert guards.looks_like_production(url) is production

@@ -30,7 +30,11 @@ PREFERENCES = {"credentials_enable_service": False, "profile": {"password_manage
 def find_chrome():
     if path := os.environ.get("QC_USE_CHROME"):
         return path
-    for candidate in CANDIDATES.get(platform.system(), []):
+    candidates = CANDIDATES.get(platform.system(), [])
+    if local := os.environ.get("LOCALAPPDATA"):
+        # A per-user Chrome install on Windows, made without administrator rights.
+        candidates = [*candidates, str(Path(local) / "Google" / "Chrome" / "Application" / "chrome.exe")]
+    for candidate in candidates:
         if found := shutil.which(candidate) or (candidate if Path(candidate).exists() else None):
             return found
     return None
@@ -111,6 +115,8 @@ def connect(chrome):
     """Point the process-owned browser daemon at this run's Chrome."""
     os.environ["BU_NAME"] = DAEMON
     os.environ["BU_CDP_URL"] = chrome.url
+    # Test pages can hold secrets. Keep browser-harness telemetry, recordings, and update checks off for this daemon.
+    os.environ.update(BH_TELEMETRY="0", BH_RECORD="0", BH_UPDATE_CHECK="0")
     from browser_harness.admin import daemon_alive, restart_daemon
 
     if daemon_alive(DAEMON):

@@ -7,8 +7,9 @@ Copyright (c) 2026 Browser Use.
 
 Files adapted from jev-ultrafast, with changes:
 
-  qc_use/engine/agent.py      (from jev_ultrafast/agent.py)
-  qc_use/engine/browser.py    (from jev_ultrafast/browser.py; activates the private capture tab and validates native browser history)
+  qc_use/engine/agent.py      (from jev_ultrafast/agent.py; records uncertain input and settles page changes after stale reads)
+  qc_use/engine/browser.py    (from jev_ultrafast/browser.py; activates the private capture tab, validates native browser history,
+                               and decides dialogs while the start page loads)
   qc_use/engine/model.py      (from jev_ultrafast/model.py)
   qc_use/engine/requests.py   (request handling extracted from adapted model.py; bounded retries and diagnostics)
   qc_use/engine/answers.py    (validation extracted from the adapted model.py)

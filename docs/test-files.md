@@ -69,6 +69,11 @@ Each numbered line is a step. Write it as an instruction to a person:
 - Too vague: `Do the onboarding thing`
 
 A long step can continue on the next line. Indent the next line.
+A long `expect:` or `action:` can continue the same way. Put each `check:` and `mode:` on one line.
+
+Details (`expect:`, `check:`, `action:`, and `mode:`) belong to the step above them. The list marker (`-`, `*`, or `+`) and the indentation are optional.
+After the first step, a line that is not a step, a detail, or an indented continuation is an error. qc-use does not drop it silently.
+Save test files as UTF-8. Quote a setting name that YAML reads as a boolean or a number, such as `"on"`.
 
 qc-use runs the steps in order. If a step does not pass, qc-use stops. The later steps get the outcome `skipped`, because they depend on the earlier steps.
 

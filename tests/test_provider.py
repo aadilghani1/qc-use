@@ -166,3 +166,28 @@ def test_uncertain_sent_request_stops_with_unknown_pricing(monkeypatch, meter, e
     with pytest.raises(ProviderUnavailable):
         model.post_json("https://example.test", "key", {})
     assert post.call_count == 1
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404])
+def test_rejected_request_keeps_its_status_and_is_not_retried(monkeypatch, clock, meter, status):
+    post = Mock(return_value=httpx.Response(status))
+    monkeypatch.setattr(model.CLIENT, "post", post)
+    with pytest.raises(model.ProviderRejected) as error:
+        model.post_json("https://example.test", "key", {})
+    assert error.value.status == status and post.call_count == 1
+
+
+@pytest.mark.parametrize(("status", "setup"), [(401, True), (403, True), (500, False)])
+def test_rejected_key_at_preflight_is_a_setup_error(monkeypatch, tmp_path, status, setup):
+    spec = TestSpec(title="T", url="http://localhost:3000", steps=[Step(text="Save", expect=["Saved"])])
+    monkeypatch.setenv("AI_GATEWAY_API_KEY", "revoked")
+    monkeypatch.setattr(judge, "preflight", Mock(side_effect=model.ProviderRejected("rejected", status)))
+    chrome = Mock()
+    monkeypatch.setattr(runner, "Chrome", chrome)
+    if setup:
+        with pytest.raises(runner.SetupError, match=f"HTTP {status}"):
+            runner.run(spec, results_dir=tmp_path, echo=lambda *_: None)
+        assert list(tmp_path.iterdir()) == []
+    else:
+        assert runner.run(spec, results_dir=tmp_path, echo=lambda *_: None).exit_code == 2
+    chrome.assert_not_called()

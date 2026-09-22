@@ -53,6 +53,7 @@ class ActionRecord(ReportModel):
     text: str | None = None
     text_source: str | None = None
     page_changed: bool | None = None
+    uncertain: bool = False  # An error stopped the input after it may have run. It was not repeated.
     url: str
     elapsed_ms: int
 
@@ -216,7 +217,7 @@ def markdown(report):
                 typed = f" ← `{action.text}`" if action.text else ""
                 lines.append(
                     f"{i}. {action.operation} **{action.action}**{typed} · {action.probability:.0%} · "
-                    f"{action.latency_ms} ms"
+                    f"{action.latency_ms} ms" + (" · may not have completed" if action.uncertain else "")
                 )
             lines += ["", "</details>", ""]
         if step.screenshot_reason:

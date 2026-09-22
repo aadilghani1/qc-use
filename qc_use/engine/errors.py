@@ -19,3 +19,11 @@ class NeedsApproval(Exception):
 
 class ProviderUnavailable(RuntimeError):
     """Transient provider failures exhausted the request's retry deadline."""
+
+
+class ProviderRejected(RuntimeError):
+    """The provider refused a request with a non-transient HTTP error, such as a revoked key."""
+
+    def __init__(self, message, status):
+        super().__init__(message)
+        self.status = status

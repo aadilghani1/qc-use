@@ -1,21 +1,34 @@
 """Secrets are named in the test and resolved locally. Their values never reach a model, a trace, or a report."""
 
 import os
+import re
 from contextlib import contextmanager
 from pathlib import Path
 
 MIN_MASKED = 4  # Short values cannot be distinguished from ordinary page words safely.
+MIN_PARTIAL = 3  # A cut can end inside a secret. Mask a leftover start of this length or more.
+QUOTED = re.compile(r"""(["'])(.*)\1(\s+#.*)?""", re.S)
+
+
+def env_value(value):
+    """Remove one pair of matching quotes, or a ` #` comment after an unquoted value, as dotenv does."""
+    if quoted := QUOTED.fullmatch(value):
+        return quoted[2]
+    return re.split(r"\s+#", value, maxsplit=1)[0]
 
 
 def read_env_file(path):
+    """Read KEY=value lines. `export KEY=value` works too. Quote a value that contains ` #`."""
     values = {}
     path = Path(path)
     if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
-                values[key.strip()] = value.strip().strip('"').strip("'")
+                key = key.strip()
+                key = key[len("export") :].strip() if key.startswith("export ") else key
+                values[key] = env_value(value.strip())
     return values
 
 
@@ -53,7 +66,17 @@ class Redactor:
     def text(self, value):
         for secret, mask in self.pairs:
             value = value.replace(secret, mask)
+        if self.pairs and len(value) >= MIN_PARTIAL:
+            value = "\n".join(self.partial(line) for line in value.split("\n"))
         return value
+
+    def partial(self, line):
+        """Page text is cut at size limits. A cut inside a secret leaves its start at the end of a string or line."""
+        for secret, mask in self.pairs:
+            for size in range(len(secret) - 1, MIN_PARTIAL - 1, -1):
+                if line.endswith(secret[:size]):
+                    return line[:-size] + mask
+        return line
 
     def __call__(self, value):
         if not self.pairs:

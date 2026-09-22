@@ -11,10 +11,18 @@ from pydantic import ValidationError
 
 from . import requests
 from .answers import ChoiceAnswer, NoulAnswer, ScoreAnswer, TextValue, jev_response, validate_choice
-from .errors import ProviderUnavailable
+from .errors import ProviderRejected, ProviderUnavailable
 from .questions import NEXT_ACTION, TARGET, TEXT_VALUE
 
-__all__ = ["ChoiceAnswer", "NoulAnswer", "ScoreAnswer", "TextValue", "jev_response", "validate_choice"]
+__all__ = [
+    "ChoiceAnswer",
+    "NoulAnswer",
+    "ProviderRejected",
+    "ScoreAnswer",
+    "TextValue",
+    "jev_response",
+    "validate_choice",
+]
 
 CLIENT = httpx.Client(http2=True, timeout=25)
 GATEWAY = "https://ai-gateway.vercel.sh"

@@ -622,3 +622,36 @@ def test_history_never_offers_non_http_entries(url):
         previous_entry({"currentIndex": 1, "entries": [{"id": 1, "url": url}, {"id": 2, "url": "http://localhost"}]})
         is None
     )
+
+
+@pytest.mark.parametrize("error", [NeedsApproval("delete data", "confirm: Delete?", 0.9), TimeoutError("cdp")])
+def test_input_stopped_after_it_ran_is_recorded_once_as_uncertain(error):
+    a = make_agent()
+    a.browser.act.side_effect = error
+    a.state["decision"] = decision("e3", operation="CLICK")
+    with pytest.raises(type(error)):
+        a.act()
+    assert [(h["action"], h["uncertain"]) for h in a.state["history"]] == [("Go", True)]
+    a.browser.act.assert_called_once()
+
+
+def test_stale_page_before_input_records_nothing():
+    a = make_agent()
+    a.browser.act.side_effect = StalePage("changed before input")
+    a.state["decision"] = decision("e3", operation="CLICK")
+    with pytest.raises(StalePage):
+        a.act()
+    assert a.state["history"] == []
+
+
+def test_stale_read_after_an_action_still_counts_toward_the_stuck_stop():
+    a = make_agent()
+    for attempt in range(3):
+        # The first read after each click is stale. The next read shows the same page.
+        a.browser.observe.side_effect = [StalePage("settling"), a.state["page"]]
+        a.state["started_at"] = a.state["started_at"] or time.perf_counter()
+        a.predict = Mock()  # Skip the model: the decision below is the one to execute.
+        a.state["decision"] = decision("e3", operation="CLICK")
+        a.tick()
+        assert a.state["history"][-1]["page_changed"] is False, attempt
+    assert a.state["status"] == "blocked"

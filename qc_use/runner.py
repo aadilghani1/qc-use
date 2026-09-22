@@ -2,6 +2,8 @@
 
 import json
 import secrets as tokens
+import shlex
+import shutil
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +26,7 @@ from .report import (
     RatingResult,
     Report,
     Signal,
+    StepOutcome,
     StepResult,
     markdown,
     plural,
@@ -57,6 +60,17 @@ def compose_goal(spec, index, results, tag):
     if index + 1 < len(spec.steps):
         lines.append("Choose DONE as soon as this step is complete. Later steps are not part of this goal.")
     return "\n".join(lines)
+
+
+def approval_for(spec, index, error):
+    """The rule, the action, and the exact command that allows it."""
+    return Approval(
+        step=index + 1,
+        rule=error.rule,
+        action=error.action,
+        probability=round(error.probability, 4),
+        rerun_with=shlex.join(["qc-use", "run", str(spec.path), "--allow", error.rule]),
+    )
 
 
 def run_step(spec, index, browser, guard, page, history, results, context):
@@ -112,14 +126,7 @@ def run_step(spec, index, browser, guard, page, history, results, context):
     except Blocked as error:
         reason = str(error)
     except NeedsApproval as error:
-        outcome, reason = "needs_approval", str(error)
-        approval = Approval(
-            step=index + 1,
-            rule=error.rule,
-            action=error.action,
-            probability=round(error.probability, 4),
-            rerun_with=f'qc-use run {spec.path} --allow "{error.rule}"',
-        )
+        outcome, reason, approval = "needs_approval", str(error), approval_for(spec, index, error)
     except (model.BudgetExceeded, RuntimeError, ValueError, TimeoutError) as error:
         reason = str(error) or type(error).__name__
     signals = [*agent.state["signals"], *browser.signals()]
@@ -285,7 +292,15 @@ def run(
     rating_issues: dict[str, dict] = {}
     cleanup_errors: list[str] = []
     try:
-        judge.preflight()
+        try:
+            judge.preflight()
+        except model.ProviderRejected as error:
+            if 400 <= error.status < 500:
+                raise SetupError(
+                    f"Jev's provider refused the request (HTTP {error.status}). Check {' or '.join(keys)} "
+                    "and TYPESAFE_MODEL, then run `qc-use doctor`. Nothing ran."
+                ) from None
+            raise
         chrome = Chrome(profile=profile, headless=headless)
         connect(chrome)
         from .engine.browser import Browser
@@ -334,14 +349,21 @@ def run(
             if missing_required and not meter.unavailable and all(r.outcome == "pass" for r in results):
                 results[-1].outcome = "inconclusive"
                 results[-1].reason = "A required rating could not be checked."
-    except (RuntimeError, ValueError, TimeoutError, OSError, KeyboardInterrupt) as error:
+    except SetupError:
+        shutil.rmtree(out, ignore_errors=True)  # Nothing ran, so no run folder stays behind.
+        raise
+    except (RuntimeError, ValueError, TimeoutError, OSError, KeyboardInterrupt, Blocked, NeedsApproval) as error:
+        # A dialog on the start page can stop the run before step 1 acts.
         context["interrupted"] = isinstance(error, KeyboardInterrupt)
         reason = "Run interrupted." if context["interrupted"] else str(error)
+        stop: StepOutcome = "needs_approval" if isinstance(error, NeedsApproval) else "blocked"
         index = len(results)
+        if isinstance(error, NeedsApproval):
+            approval = approval_for(spec, min(index, len(spec.steps) - 1), error)
         if index < len(spec.steps):
-            results.append(StepResult(index=index + 1, text=spec.steps[index].text, outcome="blocked", reason=reason))
+            results.append(StepResult(index=index + 1, text=spec.steps[index].text, outcome=stop, reason=reason))
         elif results:
-            results[-1].outcome, results[-1].reason = "blocked", reason
+            results[-1].outcome, results[-1].reason = stop, reason
         results += [
             StepResult(index=i + 1, text=spec.steps[i].text, outcome="skipped")
             for i in range(len(results), len(spec.steps))

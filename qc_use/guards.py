@@ -32,12 +32,21 @@ NONPRODUCTION = {
     "demo",
     "local",
 }
+# Second-level names under a country code, as in acme.co.uk. The registrable domain then has three labels.
+SECOND_LEVEL = {"ac", "co", "com", "edu", "gov", "net", "org"}
 
 
 def endpoint(url):
     parsed = urlparse(url if "://" in url else f"//{url}")
     default = {"https": 443, "http": 80}.get(parsed.scheme)
     return (parsed.hostname or "").lower(), parsed.port or default
+
+
+def subdomain_words(host):
+    """Words left of the registrable domain, such as `staging` in staging.acme.co.uk. A site's own name never counts."""
+    labels = host.split(".")
+    size = 3 if len(labels) > 2 and len(labels[-1]) == 2 and labels[-2] in SECOND_LEVEL else 2
+    return [word for label in labels[:-size] for word in re.split(r"[-_]", label)]
 
 
 def looks_like_production(url):
@@ -49,7 +58,7 @@ def looks_like_production(url):
         return not (address.is_private or address.is_loopback or address.is_link_local)
     except ValueError:
         pass
-    return not any(label in NONPRODUCTION for label in re.split(r"[.-]", host.rsplit(".", 1)[0]))
+    return not any(word in NONPRODUCTION for word in subdomain_words(host))
 
 
 class Sites:
@@ -96,8 +105,13 @@ class Guardrails(Policy):
             raise NeedsApproval(rule, label, p)
 
     def before_act(self, action, page, decision):
-        if action.get("href") and not self.sites.allows(action["href"]):
-            raise Blocked(f"The link '{action['label']}' leads outside the allowed sites ({action['href']})")
+        href = action.get("href") or ""
+        scheme = urlparse(href).scheme
+        if scheme in {"mailto", "tel", "sms"}:
+            raise Blocked(f"unsupported: the link '{action['label']}' opens another app ({scheme}:)")
+        # Other schemes, such as javascript:, stay on the page. A later page read checks any navigation.
+        if scheme in {"http", "https"} and not self.sites.allows(href):
+            raise Blocked(f"The link '{action['label']}' leads outside the allowed sites ({href})")
         rules = self.active()
         if action["kind"] not in {"click", "select", "fill", "upload", "back", "reload"} or not rules:
             return  # Scrolling and waiting have no chosen mutation target.
@@ -115,7 +129,8 @@ class Guardrails(Policy):
         if record["type"] in {"alert", "beforeunload"}:
             return True, None
         if record["type"] == "prompt":
-            raise Blocked(f"unsupported: a prompt() dialog asked for text ('{record['message'][:120]}')")
+            # The message ends the reason, so the Redactor can mask a secret that the cut splits.
+            raise Blocked(f"unsupported: a prompt() dialog asked for text: {record['message'][:120]}")
         accept, probabilities = judge.dialog(record, self.goal, self.active())
         if accept:
             self.decide(probabilities, f"confirm: {record['message'][:120]}")

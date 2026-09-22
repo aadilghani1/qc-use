@@ -39,6 +39,7 @@ CLI headers, setup errors, and repeat summaries also mask declared secrets after
   Exact matching cannot recognize transformed values or malicious page behavior. This is not protection against a hostile app.
 
 Secrets with fewer than four characters are refused before Chrome starts. They cannot be distinguished safely from ordinary text.
+Page text is cut at size limits. If a cut splits a secret, the start of the secret ends a line. qc-use masks three or more characters of a secret's start at the end of a line.
 Field names and outcome labels are code-owned values and are not rewritten during redaction.
 
 Each test loads its own environment files. A previous test file cannot supply credentials to the next test.
@@ -55,6 +56,8 @@ allow: [auth.localhost:3000, "*.example.test"]
 ```
 
 - Before a click on a link, qc-use checks the link target. A link to another site stops the step.
+- A `mailto:`, `tel:`, or `sms:` link opens another app. It stops the step as unsupported.
+- A `javascript:` link runs on the page. The page address check after the action applies to it.
 - After each action and verification read, qc-use checks the page address. An outside address blocks the step.
 - Background requests are not filtered. Script navigation can reach another site before qc-use detects it.
 - If the page opens a new tab or window, the step is blocked.
@@ -65,7 +68,7 @@ qc-use refuses to start if the URL looks like production. These URLs are allowed
 
 - `localhost` and IP addresses on your own network.
 - Names that end with `.test`, `.local`, `.localhost`, `.internal`, or `.example`.
-- Names with a label such as `staging`, `dev`, `preview`, `qa`, `test`, `sandbox`, or `demo`, excluding the final suffix.
+- Names with a word such as `staging`, `dev`, `preview`, `qa`, `test`, `sandbox`, or `demo` to the left of the site's own domain. For `app-staging.acme.com`, qc-use reads `app-staging`, not `acme.com`. Words in the domain itself, as in `test-kitchen.com`, do not count.
 
 A public `.dev` address is not automatically safe. These name checks are heuristics, not proof that a site is staging.
 Some deployment preview names need explicit `allow_production: true`. qc-use does not trust every host on a shared deployment domain.
@@ -128,6 +131,7 @@ Secret templates expand only explicitly named values. Their expanded values use 
 ## Provider outages
 
 Preflight validates Jev before Chrome starts. It does not guarantee availability during the run.
+If the provider refuses preflight with an HTTP 4xx answer, such as a revoked key, the run is a setup error. No run folder stays behind.
 Transient failures retry model requests only, within one 45-second deadline and the run's request limit.
 Browser input never repeats as part of provider recovery. A recovered decision must still pass page-freshness checks.
 After a deadline expires, qc-use stops model requests and saves the run evidence. An in-flight request may still incur provider charges.

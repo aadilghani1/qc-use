@@ -171,7 +171,7 @@ qc-use is built on [jev-ultrafast](https://github.com/browser-use/jev-ultrafast)
 - **Allowed sites:** qc-use checks links before clicking and checks page addresses after reads, including verification. Background requests are not filtered.
 - **No production by accident:** qc-use refuses URLs that look like production, unless you set `allow_production: true`.
 - **Never-do rules:** before each click, fill, dropdown choice, or upload, the gate asks Jev if the action can break a rule. The default rules forbid deleting data, making a payment, and sending a message to a real person. You can add your own rules. If a rule can break, qc-use stops and asks a person.
-- **Provider availability:** preflight checks Jev before Chrome starts. Transient failures retry for at most 45 seconds per request.
+- **Provider availability:** preflight checks Jev before Chrome starts. A refused key or model is a setup error (exit 4). Transient failures retry for at most 45 seconds per request.
   Provider outages retain a blocked result and a distinct `provider_issue` in the report. Preflight cannot guarantee later availability.
 - **Limits:** each step has an action limit, each run has a cost limit, and qc-use does not retry uncertain input to hide a failure. Unknown pricing stops further model calls.
 

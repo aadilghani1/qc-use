@@ -45,6 +45,7 @@ class Agent:
         self.screenshots = screenshots
         self.max_actions = max_actions
         self.pending_text: tuple | None = None
+        self.before_action: Page | None = None  # The page before the last action, until a read after it succeeds.
         self.state = {
             "goal": goal,
             "page": page,
@@ -81,6 +82,7 @@ class Agent:
             state["decision"] = None
             state["status"] = "ready"
             self.observe()
+            self.settle_change()
         state["elapsed_ms"] = self.elapsed()
         return state
 
@@ -144,31 +146,46 @@ class Agent:
             shown, source = text, helper["source"]
         elif action["kind"] == "upload":
             text, shown, source = str(self.files[decision["file"]]), f"[file:{decision['file']}]", "file"
+        record = {
+            "action": action["label"],
+            "kind": action["kind"],
+            "choice": selected,
+            "operation": decision["operation"],
+            "target": decision["target"],
+            "probability": decision["probabilities"][selected],
+            "confidence": decision["confidence"],
+            "latency_ms": decision["latency_ms"],
+            "text": shown,
+            "text_source": source,
+            "text_latency_ms": helper["latency_ms"] if helper else 0,
+            "page_changed": None,
+            "url": page["url"],
+            "elapsed_ms": self.elapsed(),
+        }
         # Browser.act checks freshness immediately before input, including after text generation.
-        self.browser.act(action, page, text=text)
+        try:
+            self.browser.act(action, page, text=text)
+        except StalePage:
+            raise  # Nothing ran: the freshness check failed before input.
+        except BaseException:
+            # A dialog decision, a timeout, or an interrupt can stop input that already ran. Record it once.
+            state["history"].append({**record, "uncertain": True})
+            raise
         self.pending_text = None
         # Record execution before observing. A stale post-action observation must not erase the action.
-        state["history"].append(
-            {
-                "action": action["label"],
-                "kind": action["kind"],
-                "choice": selected,
-                "operation": decision["operation"],
-                "target": decision["target"],
-                "probability": decision["probabilities"][selected],
-                "confidence": decision["confidence"],
-                "latency_ms": decision["latency_ms"],
-                "text": shown,
-                "text_source": source,
-                "text_latency_ms": helper["latency_ms"] if helper else 0,
-                "page_changed": None,
-                "url": page["url"],
-                "elapsed_ms": self.elapsed(),
-            }
-        )
+        state["history"].append(record)
+        self.before_action = page
         self.observe()
+        self.settle_change()
+
+    def settle_change(self):
+        """Compare the first successful read after an action with the page before it, then check for a stuck run."""
+        state, before = self.state, self.before_action
+        if before is None:
+            return
+        self.before_action = None
         state["history"][-1].update(
-            page_changed=state["page"]["fingerprint"] != page["fingerprint"], url=state["page"]["url"]
+            page_changed=state["page"]["fingerprint"] != before["fingerprint"], url=state["page"]["url"]
         )
         repeated = state["history"][-3:]
         stuck = len(repeated) == 3 and all(h["page_changed"] is False and h["kind"] != "wait" for h in repeated)

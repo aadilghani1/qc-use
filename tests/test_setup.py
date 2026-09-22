@@ -138,3 +138,25 @@ def test_cli_writes_utf8_even_when_redirected_to_legacy_encoding(tmp_path):
     )
     assert result.returncode == 0, result.stderr.decode("utf-8")
     assert "✓ created" in result.stdout.decode("utf-8")
+
+
+@pytest.mark.parametrize("target", ["folder", "new-folder"])
+def test_skill_install_into_a_folder_writes_skill_md(tmp_path, target):
+    folder = tmp_path / target
+    if target == "folder":
+        folder.mkdir()
+    assert cli.main(["skill", "install", "--path", str(folder)]) == 0
+    assert (folder / "SKILL.md").read_text(encoding="utf-8") == skill.text()
+
+
+def test_per_user_chrome_on_windows_is_found(tmp_path, monkeypatch):
+    from qc_use import chrome
+
+    installed = tmp_path / "Google" / "Chrome" / "Application" / "chrome.exe"
+    installed.parent.mkdir(parents=True)
+    installed.touch()
+    monkeypatch.delenv("QC_USE_CHROME", raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(chrome.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(chrome.shutil, "which", lambda _: None)
+    assert chrome.find_chrome() == str(installed)
