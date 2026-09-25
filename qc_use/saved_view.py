@@ -1,6 +1,7 @@
 """Open saved, masked run evidence in the existing read-only inspector."""
 
 import threading
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -67,8 +68,9 @@ class SavedView(Watch):
         }, screenshot
 
 
-def serve(path, open_browser=True, echo=print):
+def serve(path, open_browser=True, echo=None):
     """Keep a saved view available until the user presses Ctrl+C."""
+    echo = echo or partial(print, flush=True)
     view = SavedView(path)
     view.open(echo, open_browser=open_browser, label="Saved report")
     try:

@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: aadilghani1/qc-use@v0.3.0
+      - uses: aadilghani1/qc-use@v0.4.0
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
           LOGIN_EMAIL: ${{ secrets.LOGIN_EMAIL }}
@@ -59,7 +59,7 @@ The action has two outputs: `exit-code` (see the exit codes in the README) and `
       - run: npm ci && npm run build
       - run: npm start &
       - run: npx wait-on http://localhost:3000
-      - uses: aadilghani1/qc-use@v0.3.0
+      - uses: aadilghani1/qc-use@v0.4.0
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
 ```
@@ -78,7 +78,7 @@ jobs:
         test: [qa/onboarding.md, qa/checkout.md, qa/settings.md]
     steps:
       - uses: actions/checkout@v7
-      - uses: aadilghani1/qc-use@v0.3.0
+      - uses: aadilghani1/qc-use@v0.4.0
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
         with:
@@ -112,3 +112,23 @@ qc-use run qa/*.md --headless --junit qa-results/junit.xml --summary qa-results/
 In JUnit, a failed step is a `failure`. An inconclusive, blocked, or needs-approval step is an `error`, because the app may not have a bug. A skipped step is `skipped`.
 A test file that did not run has one `setup` test case with an error.
 The JUnit file and the summary pass through the same redaction as the reports. They never contain a secret value.
+
+## Command results for agents
+
+Use `qc-use run 'qa/*.md' --json-result` for a stable command response:
+
+```json
+{
+  "schema_version": "qc-use.command/1",
+  "reports": [],
+  "setup_errors": [{"file": "qa/login.md", "error": "Missing secrets: LOGIN_EMAIL"}],
+  "exit_code": 4
+}
+```
+
+`reports` contains unchanged `qc-use.report/2` objects. `setup_errors` names each test that could not start.
+A batch can contain both reports and setup errors. Exit codes retain their existing meanings.
+Use `qc-use schema command` to inspect the schema. Existing `--json` behavior is unchanged.
+Quoted patterns expand in both `run` and `validate`. Matches are sorted and overlapping paths run once.
+An unmatched pattern produces a setup error. Other matched tests still run.
+Live URLs appear on stderr with `--watch`. Do not use `--keep-open` in unattended jobs.

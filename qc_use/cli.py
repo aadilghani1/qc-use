@@ -1,8 +1,10 @@
 """qc-use: critical-path QA in plain words. Powered by TypeSafe Jev."""
 
 import argparse
+import glob
 import json
 import os
+import shlex
 import sys
 from functools import partial
 from pathlib import Path
@@ -10,6 +12,16 @@ from pathlib import Path
 from . import __version__, build_identity
 
 MARK = {"pass": "✅", "fail": "❌", "inconclusive": "❔", "blocked": "⛔", "needs_approval": "✋"}
+
+
+def test_files(patterns):
+    """Expand file patterns consistently across shells, without repeating a test."""
+    found: dict[str, str] = {}
+    for pattern in patterns:
+        matches = [pattern] if Path(pattern).exists() else sorted(glob.glob(pattern, recursive=True)) or [pattern]
+        for path in matches:
+            found.setdefault(str(Path(path).resolve()), path)
+    return list(found.values())
 
 
 def ask_person(rule, action, probability):
@@ -27,14 +39,18 @@ def run_command(args):
     from .secrets import Redactor, load_env
     from .spec import SpecError, load, rebase
 
-    interactive = sys.stdin.isatty() and sys.stdout.isatty() and not args.json
-    output = partial(print, flush=True) if not args.json else (lambda *_: None)
+    interactive = sys.stdin.isatty() and sys.stdout.isatty() and not (args.json or args.json_result)
+    output = partial(print, flush=True) if not (args.json or args.json_result) else (lambda *_: None)
     redact = Redactor({})
 
     def echo(message):
         output(redact.text(message))
 
+    def notice(message):
+        print(redact.text(message), file=sys.stderr, flush=True)
+
     codes, reports, setup_errors, redactors = [], [], [], []
+    kept_live = None
     initial_environment = dict(os.environ)
 
     def setup_error(file, message):
@@ -42,85 +58,110 @@ def run_command(args):
         setup_errors.append({"file": str(file), "error": redact.text(str(message))})
         codes.append(SETUP_ERROR)
 
-    for file in args.files:
-        os.environ.clear()
-        os.environ.update(initial_environment)
-        redact = Redactor({})
-        try:
-            spec = load(file)
-        except (SpecError, OSError) as error:
-            setup_error(file, error)
-            continue
-        load_env(spec.path.parent)
-        load_env(Path.cwd())
-        redact = Redactor({name: os.environ.get(name, "") for name in spec.secrets})
-        redactors.append(redact)
-        if args.base_url:
+    try:
+        for file in test_files(args.files):
+            os.environ.clear()
+            os.environ.update(initial_environment)
+            redact = Redactor({})
             try:
-                spec = rebase(spec, args.base_url)
-            except SpecError as error:
+                spec = load(file)
+            except (SpecError, OSError) as error:
                 setup_error(file, error)
                 continue
-        if args.repeat > 1 and not spec.repeat_safe:
-            setup_error(file, "repeat needs repeat_safe: true and equivalent test account state for each run.")
-            continue
-        if args.manual_auth and (args.headless or not args.profile or not interactive):
-            setup_error(file, "--manual-auth needs an interactive terminal, --profile, and visible Chrome.")
-            continue
-        for attempt in range(args.repeat):
-            label = f" (run {attempt + 1}/{args.repeat})" if args.repeat > 1 else ""
-            echo(f"qc-use · {spec.title}{label} · {spec.url}")
-            live = None
             try:
-                if args.watch:
-                    from .watch import Watch
+                for folder in (spec.path.parent, Path.cwd()):
+                    load_env(folder)
+            except (OSError, UnicodeError):
+                setup_error(file, f"Cannot read {folder / '.env'}. Check UTF-8 encoding and file permissions.")
+                continue
+            redact = Redactor({name: os.environ.get(name, "") for name in spec.secrets})
+            redactors.append(redact)
+            if args.base_url:
+                try:
+                    spec = rebase(spec, args.base_url)
+                except SpecError as error:
+                    setup_error(file, error)
+                    continue
+            if args.repeat > 1 and not spec.repeat_safe:
+                setup_error(file, "repeat needs repeat_safe: true and equivalent test account state for each run.")
+                continue
+            if args.manual_auth and (args.headless or not args.profile or not interactive):
+                setup_error(file, "--manual-auth needs an interactive terminal, --profile, and visible Chrome.")
+                continue
+            for attempt in range(args.repeat):
+                label = f" (run {attempt + 1}/{args.repeat})" if args.repeat > 1 else ""
+                echo(f"qc-use · {spec.title}{label} · {spec.url}")
+                live = None
+                try:
+                    if args.watch:
+                        from .watch import Watch
 
-                    live = Watch.start(spec, echo)
-                report = run(
-                    spec,
-                    allow=args.allow,
-                    allow_production=args.allow_production,
-                    approve=ask_person if interactive else None,
-                    profile=args.profile,
-                    headless=args.headless,
-                    manual_auth=(lambda: input("Sign in in the private Chrome window, then press Enter here: "))
-                    if args.manual_auth
-                    else None,
-                    results_dir=args.results,
-                    live=live,
-                    screenshots=not args.no_screenshots,
-                    echo=echo,
-                )
-            except KeyboardInterrupt:
+                        live = Watch.start(spec, notice)
+                    report = run(
+                        spec,
+                        allow=args.allow,
+                        allow_production=args.allow_production,
+                        approve=ask_person if interactive else None,
+                        profile=args.profile,
+                        headless=args.headless,
+                        manual_auth=(lambda: input("Sign in in the private Chrome window, then press Enter here: "))
+                        if args.manual_auth
+                        else None,
+                        results_dir=args.results,
+                        live=live,
+                        screenshots=not args.no_screenshots,
+                        echo=echo,
+                    )
+                except KeyboardInterrupt:
+                    if live:
+                        live.finish()
+                    raise
+                except (SetupError, RuntimeError, ValueError, TimeoutError, OSError) as error:
+                    setup_error(file, error)
+                    if live:
+                        live.finish()
+                    break
                 if live:
-                    live.finish()
-                raise
-            except (SetupError, RuntimeError, ValueError, TimeoutError, OSError) as error:
-                setup_error(file, error)
-                if live:
-                    live.finish()
+                    keep_open = args.keep_open and report.exit_code != 130
+                    live.finish(report, keep_open=keep_open)
+                    if keep_open:
+                        kept_live = live
+                    folder = str(Path(report.artifacts["folder"]).resolve())
+                    quoted = "'" + folder.replace("'", "''") + "'" if sys.platform == "win32" else shlex.quote(folder)
+                    notice(f"Reopen saved evidence: qc-use report {quoted}")
+                reports.append(report)
+                codes.append(report.exit_code)
+                cost = f"${report.cost.usd:.8f}{' est.' if report.cost.estimated else ''}"
+                seconds = report.elapsed_ms / 1000
+                echo(f"{MARK[report.outcome]} {report.outcome} · {report.summary} ({seconds:.1f} s, {cost})")
+                echo(f"   {Path(report.artifacts['folder']) / 'report.md'}\n")
+                if report.exit_code == 130:
+                    break
+            if codes and codes[-1] == 130:
                 break
-            if live:
-                live.finish(report)
-            reports.append(report)
-            codes.append(report.exit_code)
-            cost = f"${report.cost.usd:.8f}{' est.' if report.cost.estimated else ''}"
-            seconds = report.elapsed_ms / 1000
-            echo(f"{MARK[report.outcome]} {report.outcome} · {report.summary} ({seconds:.1f} s, {cost})")
-            echo(f"   {Path(report.artifacts['folder']) / 'report.md'}\n")
-            if report.exit_code == 130:
-                break
-        if codes and codes[-1] == 130:
-            break
-        if args.repeat > 1:
-            runs = [r for r in reports if r.test["file"] == str(spec.path)]
-            passed = sum(r.outcome == "pass" for r in runs)
-            echo(f"Pass rate for {spec.title}: {passed}/{len(runs)}")
-    write_summaries(args, reports, setup_errors, redactors)
-    if args.json:
-        payload = [r.model_dump(mode="json") for r in reports]
-        print(json.dumps(payload[0] if len(payload) == 1 else payload, indent=2))
-    return max(codes, default=SETUP_ERROR)
+            if args.repeat > 1:
+                runs = [r for r in reports if r.test["file"] == str(spec.path)]
+                passed = sum(r.outcome == "pass" for r in runs)
+                echo(f"Pass rate for {spec.title}: {passed}/{len(runs)}")
+        write_summaries(args, reports, setup_errors, redactors)
+        if args.json_result:
+            from .report import CommandResult
+
+            result = CommandResult(
+                reports=reports, setup_errors=setup_errors, exit_code=max(codes, default=SETUP_ERROR)
+            )
+            for redactor in redactors:
+                result = result.redacted(redactor)
+            print(result.model_dump_json(indent=2), flush=True)
+        elif args.json:
+            payload = [r.model_dump(mode="json") for r in reports]
+            print(json.dumps(payload[0] if len(payload) == 1 else payload, indent=2), flush=True)
+        if kept_live:
+            kept_live.hold(notice)
+        return max(codes, default=SETUP_ERROR)
+    finally:
+        if kept_live:
+            kept_live.close()
 
 
 def write_summaries(args, reports, setup_errors, redactors):
@@ -187,10 +228,10 @@ def doctor_command(args):
 def schema_command(args):
     from pydantic import BaseModel
 
-    from .report import Report
+    from .report import CommandResult, Report
     from .spec import TestSpec
 
-    models: dict[str, type[BaseModel]] = {"report": Report, "test": TestSpec}
+    models: dict[str, type[BaseModel]] = {"report": Report, "test": TestSpec, "command": CommandResult}
     model = models[args.kind]
     print(json.dumps(model.model_json_schema(), indent=2))
     return 0
@@ -202,7 +243,7 @@ def validate_command(args):
     from .spec import SpecError, load
 
     results = []
-    for path in args.files:
+    for path in test_files(args.files):
         try:
             spec = load(path)
             results.append({"file": str(path), "valid": True, "title": spec.title, "steps": len(spec.steps)})
@@ -265,7 +306,14 @@ def parser():
     run.add_argument("--junit", metavar="FILE", help="Write JUnit XML with one test case for each step.")
     run.add_argument("--summary", metavar="FILE", help="Append a Markdown summary table, e.g. to $GITHUB_STEP_SUMMARY.")
     run.add_argument("--no-screenshots", action="store_true", help="Do not save step screenshots.")
-    run.add_argument("--json", action="store_true", help="Print report.json to stdout instead of progress.")
+    run.add_argument(
+        "--keep-open", action="store_true", help="Keep one watched run open until Ctrl+C; requires --watch."
+    )
+    json_flags = run.add_mutually_exclusive_group()
+    json_flags.add_argument("--json", action="store_true", help="Print report.json to stdout instead of progress.")
+    json_flags.add_argument(
+        "--json-result", action="store_true", help="Print reports and setup errors in a command result."
+    )
     run.set_defaults(handler=run_command)
 
     init = commands.add_parser("init", help="Create qa/ with an example test and ignore rules.")
@@ -301,8 +349,8 @@ def parser():
     report.add_argument("--no-open", action="store_true", help="Print the local URL without opening a browser.")
     report.set_defaults(handler=report_command)
 
-    schema = commands.add_parser("schema", help="Print the JSON schema of report.json or of a test file.")
-    schema.add_argument("kind", choices=["report", "test"])
+    schema = commands.add_parser("schema", help="Print the JSON schema of a report, test, or command result.")
+    schema.add_argument("kind", choices=["report", "test", "command"])
     schema.set_defaults(handler=schema_command)
     return root
 
@@ -314,6 +362,9 @@ def main(argv=None):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
     args = parser().parse_args(argv)
+    if getattr(args, "keep_open", False) and (not args.watch or args.repeat != 1 or len(test_files(args.files)) != 1):
+        print("qc-use: --keep-open requires --watch, one test file, and --repeat 1.", file=sys.stderr)
+        return SETUP_ERROR
     if getattr(args, "repeat", 1) < 1:
         print("qc-use: --repeat must be at least 1", file=sys.stderr)
         return SETUP_ERROR

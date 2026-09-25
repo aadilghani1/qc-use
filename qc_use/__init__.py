@@ -1,6 +1,6 @@
 """Critical-path QA in plain words. Powered by TypeSafe Jev."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 
 def build_identity():

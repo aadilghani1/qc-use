@@ -58,3 +58,4 @@ This file defines the words in qc-use. The code, the docs, and the reports use t
 
 - **Base URL**: another origin for a test's start URL, such as a preview deployment. The path of the start URL stays the same.
 - **CI summary**: the Markdown table and the JUnit XML that one `qc-use run` command writes for CI. They contain no secret values.
+- **Command result**: a versioned JSON response containing every report, setup error, and the command exit code.

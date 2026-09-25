@@ -1,6 +1,6 @@
 {
   "name": "qc-use",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Critical-path QA for web apps in plain words. Your agent writes a qc-use test, runs it in a private Chrome, and explains the verdict and evidence for each step.",
   "author": {
     "name": "Aadil Ghani",

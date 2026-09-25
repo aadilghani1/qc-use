@@ -138,3 +138,16 @@ Then delete the `SKILL.md` files that `qc-use skill install` listed. For the Cla
 Use `--headless` to hide Chrome. The `--watch` inspector is independent. Do not set `BROWSER=true` when automatic opening is wanted.
 
 Test files, environment files, saved reports, and CLI output use UTF-8 on every platform.
+
+## Upgrade before first use in another project
+
+Run `qc-use --version`. The current skill requires version 0.4.0 or newer.
+Upgrade an older command once with `uv tool install --python 3.12 --upgrade qc-use`.
+Then run `qc-use skill install` and read `qc-use skill print` in the current agent session.
+If the required release is unavailable, stop and report the version mismatch. Do not repeat the installation.
+An authorized source checkout can run `uv run --project <checkout> qc-use` before release.
+
+Live inspector URLs always appear on stderr, including with `--json` and `--json-result`.
+Open that URL if automatic browser opening fails. Local Chrome runs visibly unless you pass `--headless`.
+Use `--watch --keep-open` for one test to keep its completed inspector available until Ctrl+C.
+The run prints the saved-report command. Closing a completed inspector preserves the test's exit code.

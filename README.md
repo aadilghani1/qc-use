@@ -28,31 +28,24 @@ You write a test like a note to a new teammate:
 
 qc-use opens a private Chrome window and does each step. Then it checks the result. You get a pass or a fail for each step, with the reason and a screenshot.
 
-## Install with one prompt
+## Start with one prompt
 
-Paste this into your coding agent (Claude Code, Codex, Cursor, Gemini CLI, Copilot, or opencode):
+Paste this into your coding agent inside the app repository:
 
 ```text
-Install qc-use and test our onboarding critical path on localhost:3000.
-Setup: run `uv tool install --python 3.12 --upgrade qc-use`, then `qc-use skill install`.
-If uv is missing, install it first: https://docs.astral.sh/uv/getting-started/installation/
-Then read the output of `qc-use skill print` and follow it. Docs: https://github.com/aadilghani1/qc-use
+Use qc-use to test our onboarding end to end. Discover and start the local app,
+use our existing test credentials, and write and validate the critical path.
+Run with visible Chrome and --watch. Show me the live inspector link before waiting,
+then explain the results and give me the saved-report command.
+Install or upgrade qc-use with `uv tool install --python 3.12 --upgrade qc-use`,
+then run `qc-use skill install` and read `qc-use skill print` in this session.
+Setup help: https://github.com/aadilghani1/qc-use/blob/main/install.md
 ```
 
-The agent installs qc-use, finds your app, writes the test file, and shows you the steps. When you agree, it runs the test and explains the report.
-qc-use needs one key: a [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key. The agent asks you to put it in `qa/.env`. Do not paste keys into the chat.
-
-Other ways to install:
-
-| Where | Command |
-| --- | --- |
-| macOS or Linux terminal | `curl -LsSf https://raw.githubusercontent.com/aadilghani1/qc-use/main/install.sh \| sh` |
-| Windows PowerShell | `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/aadilghani1/qc-use/main/install.ps1 \| iex"` |
-| Claude Code plugin | `/plugin marketplace add aadilghani1/qc-use`, then `/plugin install qc-use@qc-use` |
-| Any agent, with the skills CLI | `npx skills add aadilghani1/qc-use` |
-| uv | `uv tool install --python 3.12 qc-use`, then `qc-use skill install` |
-
-The installers install uv when it is missing, then qc-use, then the skill for each coding agent that they find. The plugin and the skills CLI add the skill only. The skill installs the `qc-use` command on first use.
+You need local Chrome, uv, and a Vercel AI Gateway key. Keep keys and test credentials in `qa/.env`, never in chat.
+The agent creates a reusable Markdown test, runs it, and reports evidence for each step.
+It asks only for missing information or actions outside your authorization.
+Manual authentication can prepare OTP or OAuth sessions. Iframes, pop-ups, canvas, and shadow DOM remain unsupported.
 
 ## Try it in one minute
 
@@ -142,7 +135,9 @@ qc-use init                             # create qa/ with an example test and qa
 qc-use validate qa/onboarding.md --json # offline; no Chrome or model calls
 qc-use doctor qa/onboarding.md --json   # check setup and the start URL
 qc-use run qa/onboarding.md             # run one test
-qc-use run qa/onboarding.md --watch     # also open the live view
+qc-use run qa/onboarding.md --watch     # live URL is printed on stderr
+qc-use run qa/onboarding.md --watch --keep-open # keep completed inspector open
+qc-use run qa/onboarding.md --json-result # reports and setup errors in JSON
 qc-use run qa/*.md --repeat 3           # requires repeat_safe: true and repeatable test accounts
 qc-use run qa/login.md --base-url https://staging.example.test  # same path, another origin
 qc-use run qa/*.md --headless --junit qa-results/junit.xml --summary qa-results/summary.md  # CI outputs
@@ -155,6 +150,10 @@ For manual OTP or OAuth sign-in, use a dedicated profile in an interactive termi
 ```bash
 qc-use run qa/onboarding.md --manual-auth --profile /tmp/qc-use-login --watch
 ```
+
+Quoted file patterns work in `run` and `validate`, such as `qc-use run 'qa/*.md'`. Overlapping matches run once.
+`--json-result` returns `qc-use.command/1` with `reports`, `setup_errors`, and `exit_code`.
+The existing `--json` output remains unchanged. See [CI outputs](docs/ci.md) for the command result format.
 
 Each run writes a folder in `qa-results/`:
 
@@ -177,6 +176,9 @@ The exit code tells your agent or your CI what happened:
 `--headless` hides Chrome. `--watch` opens a separate, read-only live inspector, also when Chrome is headless.
 `qc-use demo --watch` shows both. `BROWSER=true` stops the inspector from opening automatically. Use the printed local URL instead.
 A missing image includes a reason. Opaque regions can be hidden to protect secrets.
+After a watched run, the terminal prints an exact command to reopen its saved report.
+`--keep-open` retains the original inspector URL until Ctrl+C. It requires one watched test and one repetition.
+Closing the completed inspector preserves the test exit code. Do not use this flag in unattended CI.
 Saved views show the recorded step screenshots and checks. They are not a video or an interactive app session.
 
 The source hash in `qc-use --version` identifies the installed build. After an upgrade, run `qc-use skill install` to refresh the agent instructions.
@@ -186,7 +188,7 @@ The source hash in `qc-use --version` identifies the installed build. After an u
 Use the GitHub Action to run your critical paths on each pull request or on a schedule:
 
 ```yaml
-- uses: aadilghani1/qc-use@v0.3.0
+- uses: aadilghani1/qc-use@v0.4.0
   env:
     AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
   with:
@@ -238,6 +240,18 @@ qc-use reports these cases as **blocked** and gives the reason:
 - `prompt()` dialogs, canvas apps, and shadow DOM.
 
 Ratings are Jev's judgment from the evidence of the run. They are not measurements.
+
+## Other installation options
+
+| Where | Command |
+| --- | --- |
+| macOS or Linux terminal | `curl -LsSf https://raw.githubusercontent.com/aadilghani1/qc-use/main/install.sh \| sh` |
+| Windows PowerShell | `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/aadilghani1/qc-use/main/install.ps1 \| iex"` |
+| Claude Code plugin | `/plugin marketplace add aadilghani1/qc-use`, then `/plugin install qc-use@qc-use` |
+| Any agent, with the skills CLI | `npx skills add aadilghani1/qc-use` |
+| uv | `uv tool install --python 3.12 qc-use`, then `qc-use skill install` |
+
+The installers install uv when it is missing, then qc-use, then the skill for each coding agent that they find. The plugin and the skills CLI add the skill only. The skill installs the `qc-use` command on first use.
 
 ## Setup
 

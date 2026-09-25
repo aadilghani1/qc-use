@@ -53,12 +53,17 @@ class Watch:
         """Serve the inspector on a private loopback URL."""
         watch = self
         server = ThreadingHTTPServer(("127.0.0.1", 0), watch.handler())
-        threading.Thread(target=server.serve_forever, daemon=True).start()
         watch.server = server
+        threading.Thread(target=server.serve_forever, daemon=True).start()
         url = f"http://127.0.0.1:{server.server_port}/?t={watch.token}"
         echo(f"  {label} at {url}")
         if open_browser:
-            webbrowser.open(url)
+            try:
+                opened = webbrowser.open(url)
+            except (OSError, webbrowser.Error):
+                opened = False
+            if not opened:
+                echo("Automatic opening was unavailable. Open the printed URL in your browser.")
         return url
 
     def __call__(self, index, state, image=None, image_reason=None):
@@ -112,7 +117,7 @@ class Watch:
                 checks=self.redact([c.model_dump() for c in result.checks]),
             )
 
-    def finish(self, report=None):
+    def finish(self, report=None, keep_open=False):
         if report:
             for result in report.steps:
                 self.record(result)
@@ -120,8 +125,17 @@ class Watch:
             self.state["status"] = report.outcome if report else "stopped"
             self.state["summary"] = report.summary if report else ""
             self.state["elapsed_ms"] = round((time.perf_counter() - self.started) * 1000)
-        self.final_seen.wait(2)  # A background viewer polls less often.
-        self.close()
+        if not keep_open:
+            self.final_seen.wait(2)  # A background viewer polls less often.
+            self.close()
+
+    def hold(self, echo):
+        """Keep completed evidence available; closing the viewer preserves the run outcome."""
+        try:
+            echo("Run finished. The inspector stays open until Ctrl+C.")
+            threading.Event().wait()
+        except KeyboardInterrupt:
+            pass
 
     def view(self, index=None):
         """Return the latest live state and masked image."""
