@@ -16,7 +16,7 @@ inputs:
     description: The folder for run results.
     default: qa-results
   args:
-    description: More arguments for `qc-use run`, such as `--repeat 3`.
+    description: More arguments for `qc-use run`, such as `--repeat 3` or `--json-result`. Do not use `--keep-open` in CI.
     default: ""
   upload:
     description: Upload the results folder as a workflow artifact.

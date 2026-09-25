@@ -16,8 +16,8 @@ Adapt the labels and expected route to your app. Use an existing test account.
 2. Enter LOGIN_PASSWORD in the password field
    - action: Enter LOGIN_PASSWORD in the password field
    - expect: the password field is filled
-3. Submit the sign-in form
-   - action: Submit the sign-in form
+3. Click Sign in
+   - action: Click Sign in
    - check: url contains /dashboard
 4. Check the dashboard
    - mode: observe

@@ -15,13 +15,18 @@ You inspect the project, write the test file, run it within the authorized scope
 Inspect the project's agent instructions, README, package scripts, routes, and existing test fixtures.
 Find the local start command, target URL, authentication method, and existing test account.
 Use configured secret names. Never print credential values or ask for them in chat.
+Choose the app folder as the command working directory, including in a monorepo.
 Start the development server when local execution is authorized. Reuse an existing healthy server.
 Wait until the actual start URL responds. Do not guess the port or invent routes.
 
-If `qc-use --version` fails, install it with uv: `uv tool install --python 3.12 qc-use`.
-If uv is missing, install it from https://docs.astral.sh/uv/getting-started/installation/ first.
+Run `qc-use --version` before the first test in this project. This skill requires qc-use 0.4.0 or newer.
+If the command is missing or older, run `uv tool install --python 3.12 --upgrade qc-use` once.
+If uv is missing, follow https://docs.astral.sh/uv/getting-started/installation/ first.
+Check the version again. If the required release is unavailable, explain the mismatch instead of retrying installation.
+An authorized source checkout can use `uv run --project <checkout> qc-use` for these commands.
+Run `qc-use skill status`. Refresh stale copies with `qc-use skill install`.
+Read `qc-use skill print` in this same session after an upgrade. Do not rely on instructions already loaded in memory.
 If setup still fails, follow https://github.com/aadilghani1/qc-use/blob/main/install.md.
-Run `qc-use skill status`. Refresh stale skill copies with `qc-use skill install`.
 Run `qc-use doctor --json` for structured setup checks. A successful doctor does not prove model availability.
 If `AI_GATEWAY_API_KEY` is missing, run `qc-use init`. Then ask the user to paste a Vercel AI Gateway key into `qa/.env` themselves.
 Existing environment credentials take precedence.
@@ -55,8 +60,8 @@ Adapt the labels and expected route to your app. Use an existing test account.
 2. Enter LOGIN_PASSWORD in the password field
    - action: Enter LOGIN_PASSWORD in the password field
    - expect: the password field is filled
-3. Submit the sign-in form
-   - action: Submit the sign-in form
+3. Click Sign in
+   - action: Click Sign in
    - check: url contains /dashboard
 4. Check the dashboard
    - mode: observe
@@ -84,7 +89,14 @@ Rules for good tests:
 qc-use run qa/<flow-name>.md --watch
 ```
 
-For a local interactive run, use `--watch` and open the printed URL. Omit it for unattended CI.
+For a local run, use `--watch` and surface its stderr URL as a clickable link before waiting for completion.
+When the user asks to watch, keep Chrome visible. Do not add `--headless` merely because the agent uses a background process.
+Open the inspector with the agent's browser tool when available. Do not claim it is visible without checking.
+If automatic opening fails, give the user the printed link. A remote machine cannot show local Chrome on the user's computer.
+Use `--keep-open` only when the user wants to revisit the completed inspector. Keep that process running until they finish.
+This flag needs one test, `--watch`, and one repetition. Ctrl+C closes the inspector and preserves the test outcome.
+Use `--json-result` for machine-readable reports and setup errors. Read stderr too, because it contains the live link.
+Omit `--watch` and `--keep-open` for unattended CI.
 For CI, use `qc-use run qa/*.md --headless --junit qa-results/junit.xml --summary "$GITHUB_STEP_SUMMARY"`, or the GitHub Action in https://github.com/aadilghani1/qc-use/blob/main/docs/ci.md.
 Use `--base-url` to run the same test on a staging or preview origin. Each run uses a fresh Chrome profile unless `--profile` reuses a dedicated profile. Results land in `qa-results/<run-id>/`.
 The live view is read-only. A missing image means masking could not be checked.
@@ -104,6 +116,7 @@ Back is offered only for an observed HTTP(S) history entry. Both operations rema
 
 ## 4. Report back
 
+Print the exact `qc-use report` command emitted by the run so the user can reopen its evidence.
 Read `qa-results/<run-id>/report.json`. Use `qc-use report qa-results/<run-id>` to reopen saved screenshots and evidence. (`qc-use schema report` prints its schema.) Then answer in plain words:
 
 - Which steps passed.

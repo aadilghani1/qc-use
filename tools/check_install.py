@@ -40,7 +40,8 @@ def main():
         run("init")
         assert (root / "qa/onboarding.md").read_bytes() == before
         assert json.loads(run("validate", "qa/onboarding.md", "--json"))[0]["valid"]
-        for kind in ("test", "report"):
+        assert json.loads(run("validate", "qa/*.md", "--json"))[0]["valid"]
+        for kind in ("test", "report", "command"):
             assert "properties" in json.loads(run("schema", kind))
         run("skill", "install", "--path", str(root / "SKILL.md"))
         assert "qc-use validate" in (root / "SKILL.md").read_text(encoding="utf-8")

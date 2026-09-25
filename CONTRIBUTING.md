@@ -186,3 +186,21 @@ The release workflow runs the checks and builds once. Then it attaches the wheel
 PyPI publishing uses trusted publishing: PyPI trusts `release.yml` in the `pypi` environment, so no token is stored. A failed check prevents publication.
 Install a known release with `uv tool install --python 3.12 qc-use==<version>`, or use the action at `aadilghani1/qc-use@v<version>`.
 Refresh installed instructions with `qc-use skill install` after upgrading.
+
+## Verify first use outside this checkout
+
+Build and install the current wheel into a temporary environment. Use that environment's Python for this check:
+
+```bash
+/path/to/environment/bin/python tools/verify_first_use.py
+```
+
+Set a model key in the environment first. The check uses a paid preflight and local demo login.
+It creates a separate temporary project, writes a test from the login fixture, and opens visible Chrome and the inspector.
+It checks live images, the command result, and reopening saved step evidence. Add `--headless` for unattended verification.
+This POSIX check is opt-in. It does not run as an offline unit test or authenticate to a real customer app.
+
+For agent acceptance, start an agent in a fresh app folder and use the README prompt.
+Confirm it discovers the start command, uses configured credentials, writes and validates the test, and surfaces the live link before waiting.
+Confirm it explains the outcome and provides the saved-report command. Record the agent and installed qc-use version.
+The scripted fixture verifies the CLI journey. It does not prove every coding agent follows the skill correctly.

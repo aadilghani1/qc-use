@@ -153,6 +153,22 @@ class Report(ReportModel):
     artifacts: dict[str, str]
 
 
+class SetupIssue(ReportModel):
+    """A test that could not start, with its local diagnostic."""
+
+    file: str
+    error: str
+
+
+class CommandResult(ReportModel):
+    """Keep setup failures visible without changing the existing report schema."""
+
+    schema_version: Literal["qc-use.command/1"] = "qc-use.command/1"
+    reports: list[Report]
+    setup_errors: list[SetupIssue]
+    exit_code: int
+
+
 MARK = {"pass": "✅", "fail": "❌", "inconclusive": "❔", "blocked": "⛔", "needs_approval": "✋", "skipped": "⏭️"}
 
 
