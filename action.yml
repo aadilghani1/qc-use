@@ -36,7 +36,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: astral-sh/setup-uv@v10.2.0
+    - uses: astral-sh/setup-uv@v10.3.0
 
     # Install from this action's own checkout, so the action ref pins the qc-use version.
     - name: Install qc-use
@@ -64,7 +64,7 @@ runs:
 
     - name: Upload the evidence
       if: always() && inputs.upload == 'true'
-      uses: actions/upload-artifact@v7.0.1
+      uses: actions/upload-artifact@v7.0.2
       with:
         name: ${{ inputs.artifact-name }}
         path: ${{ inputs.results }}
